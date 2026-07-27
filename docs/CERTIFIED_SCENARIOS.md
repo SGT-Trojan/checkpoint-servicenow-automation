@@ -67,7 +67,7 @@ to the MDS, and installed it one standby member at a time:
 
 | Activity | Starting state | Ending state | Result |
 |---|---|---|---|
-| Recommended JHF install | R82 build 777, Take 60 | R82 build 777, Take 107 on both members | Live pass with real reboots, controlled failover, policy and strict health checks; independent evidence review remains pending |
+| Recommended JHF install | R82 build 777, Take 60 | R82 build 777, Take 107 on both members | Passed with real reboots, controlled failover, policy and strict health checks; independently reviewed |
 
 ## Runner-Level Management API Certification
 
@@ -85,13 +85,23 @@ The tested API rejected the per-member semantics required for safe rolling
 cluster uninstall. The direct CPUSE fallback is deliberate, visible in the
 workflow, and does not invoke CDT.
 
+## Earlier Governed Functional Coverage
+
+Before the principal independently reviewed July 26 certification cycle, a
+ServiceNow-governed functional E2E cycle completed on 2026-07-13. It exercised
+an R82 Take 91 software-patch install, the Deployment Agent activity, and an
+R81.20-to-R82 CDT major upgrade through catalog, readiness, change, task, and
+closure handling. The July 26 rows are the principal certification matrix
+because their exact baseline states and retained evidence received the later
+independent certification review; the earlier cycle remains relevant functional
+coverage rather than an omitted claim.
+
 ## Deployment Agent Functional Coverage
 
-A ServiceNow-driven Deployment Agent activity completed successfully on
-2026-07-13 using the dedicated short workflow. Both gateways already resolved to
-build 2771, so this proves idempotent package/readiness handling and dual-member
-execution behavior; it is not evidence of an upgrade from every older Agent
-build.
+The 2026-07-13 ServiceNow-driven Deployment Agent activity used the dedicated
+short workflow. Both gateways already resolved to build 2771, so this proves
+idempotent package/readiness handling and dual-member execution behavior; it is
+not evidence of an upgrade from every older Agent build.
 
 ## Explicitly Not Certified
 
