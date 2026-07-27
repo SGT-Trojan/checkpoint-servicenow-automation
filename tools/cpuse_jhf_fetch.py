@@ -434,6 +434,32 @@ def select_interactive(records: list[dict[str, object]]) -> dict[str, object]:
     return dict(records[choice - 1])
 
 
+def format_selected(record: dict[str, object]) -> str:
+    return "\n".join(
+        (
+            f"Selected: {record['version']} Take {record['take']} ({record['policy']})",
+            f"Title:    {record.get('title') or '-'}",
+            f"File:     {record.get('filename') or '-'}",
+            f"Size:     {record.get('display_size') or '-'}",
+            f"SHA256:   {record.get('sha256') or '-'}",
+        )
+    )
+
+
+def confirm_download(record: dict[str, object], destination: Path) -> bool:
+    filename = str(record.get("filename") or "selected package")
+    while True:
+        try:
+            answer = input(f"Download {filename} to {destination}? [y/N]: ").strip().lower()
+        except EOFError as exc:
+            raise FetchError("download confirmation requires y or n") from exc
+        if answer in ("", "n", "no"):
+            return False
+        if answer in ("y", "yes"):
+            return True
+        print("Please enter y or n.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version", default="R82", help="release, for example R82 or R81.20")
@@ -444,7 +470,10 @@ def main() -> int:
     )
     selection.add_argument("--list", action="store_true", help="list current and archived Recommended packages")
     selection.add_argument(
-        "--interactive", "--menu", action="store_true", help="select from a numbered package menu"
+        "--interactive",
+        "--menu",
+        action="store_true",
+        help="select, review, and optionally download from a numbered package menu"
     )
     parser.add_argument("--installed-take", type=int, help="report whether the selected Take is newer")
     parser.add_argument("--download", action="store_true", help="download and verify the selected package")
@@ -484,19 +513,32 @@ def main() -> int:
         selected["update_available"] = (
             args.installed_take is not None and int(selected["take"]) > args.installed_take
         )
-        result = download(selected, args.dest) if args.download else selected
+        should_download = args.download
+        if args.interactive:
+            print(f"\n{format_selected(selected)}")
+            should_download = args.download or confirm_download(selected, args.dest)
+        result = download(selected, args.dest) if should_download else selected
         payload: dict[str, object] = {"selected": result}
         if available is not None:
             payload["available"] = available
         else:
             payload["catalog"] = catalog
         rendered = json.dumps(payload, indent=2, sort_keys=True)
-        print(rendered)
+        if args.interactive:
+            if should_download:
+                print(f"Downloaded and verified: {result['path']}")
+            else:
+                print("Selection validated; no package downloaded.")
+        else:
+            print(rendered)
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(rendered + "\n")
             os.chmod(args.output, 0o600)
         return 0
+    except KeyboardInterrupt:
+        print("\nCancelled.", file=sys.stderr)
+        return 130
     except FetchError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

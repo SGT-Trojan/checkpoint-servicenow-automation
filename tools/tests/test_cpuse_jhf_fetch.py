@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 import tempfile
@@ -151,6 +152,66 @@ class JhfFetchTests(unittest.TestCase):
             with self.assertRaises(m.FetchError):
                 m.select_interactive(records)
         self.assertIn("archived-recommended", m.format_available(records))
+
+    def test_menu_confirms_download_and_uses_human_output(self):
+        records = m.parse_archive(archive(), "R82")
+        enriched = {
+            **records[0],
+            "title": "R82 JHF Take 91",
+            "filename": "Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar",
+            "display_size": "2.3 GB",
+            "sha1": "a" * 40,
+            "sha256": "b" * 64,
+        }
+        downloaded = {**enriched, "path": "/tmp/jhf/Take91.tar", "verified": True}
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", ["cpuse_jhf_fetch.py", "--menu"]),
+            mock.patch.object(m, "discover_available", return_value=records),
+            mock.patch.object(m, "enrich_record", return_value=enriched),
+            mock.patch.object(m, "download", return_value=downloaded) as downloader,
+            mock.patch("builtins.input", side_effect=["1", "y"]),
+            mock.patch("sys.stdout", stdout),
+        ):
+            self.assertEqual(m.main(), 0)
+        downloader.assert_called_once()
+        self.assertIn("Selected: R82 Take 91", stdout.getvalue())
+        self.assertIn("Downloaded and verified: /tmp/jhf/Take91.tar", stdout.getvalue())
+        self.assertNotIn('"available"', stdout.getvalue())
+
+    def test_menu_decline_does_not_download(self):
+        records = m.parse_archive(archive(), "R82")
+        enriched = {
+            **records[0],
+            "title": "R82 JHF Take 91",
+            "filename": "Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar",
+            "display_size": "2.3 GB",
+            "sha1": "a" * 40,
+            "sha256": "b" * 64,
+        }
+        with (
+            mock.patch.object(sys, "argv", ["cpuse_jhf_fetch.py", "--menu"]),
+            mock.patch.object(m, "discover_available", return_value=records),
+            mock.patch.object(m, "enrich_record", return_value=enriched),
+            mock.patch.object(m, "download") as downloader,
+            mock.patch("builtins.input", side_effect=["1", "n"]),
+            mock.patch("sys.stdout", io.StringIO()) as stdout,
+        ):
+            self.assertEqual(m.main(), 0)
+        downloader.assert_not_called()
+        self.assertIn("Selection validated; no package downloaded.", stdout.getvalue())
+
+    def test_menu_ctrl_c_exits_cleanly(self):
+        records = m.parse_archive(archive(), "R82")
+        with (
+            mock.patch.object(sys, "argv", ["cpuse_jhf_fetch.py", "--menu"]),
+            mock.patch.object(m, "discover_available", return_value=records),
+            mock.patch("builtins.input", side_effect=KeyboardInterrupt),
+            mock.patch("sys.stderr", io.StringIO()) as stderr,
+            mock.patch("sys.stdout", io.StringIO()),
+        ):
+            self.assertEqual(m.main(), 130)
+        self.assertEqual(stderr.getvalue().strip(), "Cancelled.")
 
     def test_catalog_requires_recommended_take(self):
         with self.assertRaises(m.FetchError):

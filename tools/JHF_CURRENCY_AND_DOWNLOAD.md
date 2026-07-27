@@ -44,7 +44,15 @@ Open a numbered selection menu:
 python3 tools/cpuse_jhf_fetch.py --version R82 --menu
 ```
 
-Inspect or download an exact archived Take:
+After selection, the menu validates the package metadata, prints a concise
+summary, and asks whether to download it. Answering `y` downloads into
+`./jhf_packages` by default; use `--dest` to choose another directory. Answering
+`n` retains only the validated selection result. `Ctrl+C` exits cleanly with
+status 130. Use `--menu --download` when the menu choice itself is the only
+confirmation required.
+
+Inspect or download an exact archived Take non-interactively. `--take` alone
+prints JSON metadata; it downloads only when combined with `--download`:
 
 ```bash
 python3 tools/cpuse_jhf_fetch.py --version R82 --take 91
@@ -123,4 +131,4 @@ python3 -m unittest discover -s tools/tests -v
 python3 -m py_compile tools/cpuse_jhf_fetch.py
 ```
 
-The tests use offline HTML/JSON fixtures and cover policy separation, archived-release filtering, ambiguous archive rejection, exact/menu selection, release URL mapping, metadata mismatches, canonical R81.20 filenames, checksum parsing, trusted signed URLs, and verified local-file reuse.
+The tests use offline HTML/JSON fixtures and cover policy separation, archived-release filtering, ambiguous archive rejection, exact/menu selection, menu download confirmation and refusal, clean cancellation, release URL mapping, metadata mismatches, canonical R81.20 filenames, checksum parsing, trusted signed URLs, and verified local-file reuse.
