@@ -1,4 +1,4 @@
-# Check Point ServiceNow Automation Bible
+# Check Point ServiceNow Automation: Architecture and Engineering Guide
 
 Audience: automation engineers responsible for operating, extending, or productionizing the ServiceNow-driven Check Point firewall software automation workflow.
 
@@ -24,7 +24,7 @@ At a high level:
 10. On success, the worker creates and closes the final validation CTASK, closes the Implementation CTASK, and moves the CHG to Review.
 11. On failure, the worker creates an Engineer Remediation CTASK and waits for a deliberate resume decision.
 
-The design goal is not merely to run firewall commands. The design goal is to make every risky action traceable to a ServiceNow request, a readiness decision, an approved change, a controlled implementation task, and a recoverable execution state.
+Every risky action is traceable to a ServiceNow request, a readiness decision, an approved change, a controlled implementation task, and a recoverable execution state.
 
 ## 2. Component Map
 

@@ -110,8 +110,8 @@ The following must not be inferred from the successful rows:
 - R81.20 Take 76 directly to R82 Take 60. The certified major upgrade began
   after Take 76 removal, from R81.20 Take 0.
 - R82 to R82.10, R82.10 to a later release, or any release not listed above.
-- Standalone gateways. The major and API workflows certified here use a
-  two-member cluster and deliberately reject unsupported shapes.
+- Standalone gateways. The major and API workflows certified here require a
+  two-member cluster and reject unsupported shapes.
 - Clusters with more than two members.
 - Management API selection from the ServiceNow catalog. ServiceNow continues to
   use CDT until backend selection receives its own governed certification.

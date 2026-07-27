@@ -2,28 +2,25 @@
 
 # Check Point + ServiceNow Firewall Automation
 
-**A production-oriented reference implementation for governed Check Point
-software maintenance with Ansible.**
+**A reference implementation for governed Check Point firewall maintenance with Ansible.**
 
 [![Validate](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml/badge.svg)](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-2f855a.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab.svg)](requirements.txt)
 [![Ansible Core](https://img.shields.io/badge/ansible--core-2.16--2.21-ee0000.svg)](requirements.txt)
-[![Security](https://img.shields.io/badge/security-fail--closed-7c3aed.svg)](SECURITY.md)
 
-Command-line execution and optional ServiceNow governance share the same
-readiness checks, rolling controls, evidence model, and resumable execution
-engine.
+Run it directly from an automation host or place ServiceNow in front of it.
+Both paths use the same prechecks, member order, pause points, and run state.
 
 [Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
 
 </div>
 
 > [!CAUTION]
-> This software can install and remove packages, fail over clusters, update
-> policy state, and perform major upgrades. Begin with offline tests and
-> read-only discovery in a non-production environment. Do not bypass readiness,
-> tester, remediation, policy, or rollback gates.
+> This software can change packages, policy state, and cluster ownership. Start
+> with offline tests and read-only discovery in a non-production environment.
+> Resolve every target to one managed object, verify package hashes, change one
+> member at a time, and stop for tester or remediation tasks when prompted.
 
 ## What This Repository Provides
 
@@ -73,9 +70,9 @@ flowchart LR
     FINAL --> SN
 ```
 
-The deployment backend is an implementation choice. Governance, readiness,
-cluster safety, tester gates, remediation, and evidence remain outside the
-backend so they cannot be skipped by changing transport.
+The backend is transport. Target checks, member order, failover control,
+human gates, and evidence collection run outside it, so switching backends
+cannot skip them.
 
 ## Live Validation Snapshot
 
@@ -159,23 +156,6 @@ servicenow_checkpoint_runner.py
 servicenow_checkpoint_worker.py
 ```
 
-## Safety Model
-
-The workflow is designed to fail closed when it cannot establish authoritative
-identity, topology, package metadata, policy context, cluster health, or resume
-state. Mutating execution is separated from discovery and requires explicit
-execution intent.
-
-- Resolve every requested address to one logical managed object.
-- Validate exact package identity and checksums before staging or execution.
-- Preserve rolling member order and require controlled failover.
-- Stop at tester and engineer-remediation gates instead of guessing.
-- Persist phase state so a delayed approval does not repeat completed members.
-- Revalidate governance and target state before resuming.
-- Retain sanitized summaries while excluding credentials and session material.
-
-See [SECURITY.md](SECURITY.md) for reporting and operational-security rules.
-
 ## Validate a Checkout
 
 ```bash
@@ -191,16 +171,9 @@ GitHub Actions runs the protected `test` and `secrets` checks for every pull
 request. Public exports are generated from an allowlisted source tree and carry
 a SHA-256 manifest.
 
-## Project Scope
+## Scope
 
-This repository is a reference implementation, not a Check Point or ServiceNow
-support commitment. Validate exact product releases, package critical
-information, Deployment Agent requirements, API/CDT behavior, and ServiceNow
-family behavior in your own environment.
-
-No Check Point packages, licenses, credentials, snapshots, ServiceNow exports,
-or live-system evidence are distributed here. Product names and trademarks
-belong to their respective owners.
+Validated combinations are listed in the [certification matrix](docs/CERTIFIED_SCENARIOS.md); see [SECURITY.md](SECURITY.md) before connecting the code to an environment. Vendor packages, credentials, snapshots, and live evidence are not distributed here.
 
 ## License
 
