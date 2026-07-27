@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
 import sys
 import tempfile
@@ -25,9 +26,40 @@ CATALOG = """
 """
 
 
-def detail(version="R82", take=107, filename=None, sha1="a" * 40, sha256="b" * 64):
+ARCHIVE_SOLUTION = """
+<h3>R82 Archived Recommended Takes</h3>
+<table>
+<tr><th>Take</th><th>Available Since</th><th>Recommended Since</th><th>CPUSE</th></tr>
+<tr><td>91</td><td>1 January 2026</td><td>8 January 2026</td>
+<td><a href="https://support.checkpoint.com/results/download/142535">TAR</a></td></tr>
+<tr><td>60</td><td>1 November 2025</td><td>8 November 2025</td>
+<td><a href="https://support.checkpoint.com/results/download/141053">TAR</a></td></tr>
+</table>
+<h3>R81.20 Archived Recommended Takes</h3>
+<table><tr><td>117</td><td>Earlier</td><td>Later</td>
+<td><a href="https://support.checkpoint.com/results/download/130000">TAR</a></td></tr></table>
+"""
+
+
+def archive(solution=ARCHIVE_SOLUTION, article_id="sk174185"):
+    payload = {
+        "props": {
+            "pageProps": {
+                "data": {
+                    "id": article_id,
+                    "solution": solution,
+                }
+            }
+        }
+    }
+    return f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script>'
+
+
+def detail(
+    version="R82", take=107, filename=None, sha1="a" * 40, sha256="b" * 64, title=None
+):
     item = {
-        "title": f"{version} JHF Take {take}",
+        "title": title or f"{version} JHF Take {take}",
         "version": version,
         "fileName": filename or f"Check_Point_{version}_jumbo_hf_main_Bundle_T{take}_FULL.tar",
         "datePublished": "2026-06-15",
@@ -58,6 +90,163 @@ class JhfFetchTests(unittest.TestCase):
             m.parse_detail(detail(filename="unexpected.tar"), expected)
         with self.assertRaises(m.FetchError):
             m.parse_detail(detail(sha256="bad"), expected)
+
+    def test_r8120_canonical_filename_is_case_insensitive(self):
+        expected = {"version": "R81.20", "take": 117, "download_id": "130000"}
+        parsed = m.parse_detail(
+            detail(
+                version="R81.20",
+                take=117,
+                filename="Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T117_FULL.tar",
+            ),
+            expected,
+        )
+        self.assertEqual(parsed["take"], 117)
+        with self.assertRaises(m.FetchError):
+            m.parse_detail(
+                detail(
+                    version="R81.20",
+                    take=118,
+                    filename="Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T118_FULL.tar",
+                ),
+                expected,
+            )
+
+    def test_archived_record_accepts_stale_version_only_with_matching_title(self):
+        expected = {
+            "version": "R81.20",
+            "take": 10,
+            "download_id": "127615",
+            "policy": "archived-recommended",
+        }
+        stale = detail(
+            version="R81 (EOS)",
+            take=10,
+            title="R81.20 Jumbo Hotfix Accumulator Recommended Jumbo Take 10",
+            filename="Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T10_FULL.tar",
+        )
+        parsed = m.parse_detail(stale, expected)
+        self.assertTrue(parsed["metadata_version_mismatch"])
+        self.assertEqual(parsed["metadata_version"], "R81 (EOS)")
+        self.assertIn("archive, title, and filename identify R81.20", m.format_selected(parsed))
+
+        with self.assertRaises(m.FetchError):
+            m.parse_detail(
+                detail(
+                    version="R81 (EOS)",
+                    take=10,
+                    title="R81 Jumbo Hotfix Accumulator Take 10",
+                    filename="Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T10_FULL.tar",
+                ),
+                expected,
+            )
+
+        current = {**expected, "policy": "recommended"}
+        with self.assertRaises(m.FetchError):
+            m.parse_detail(stale, current)
+
+    def test_archive_filters_release_and_returns_official_tar_records(self):
+        records = m.parse_archive(archive(), "R82")
+        self.assertEqual([record["take"] for record in records], [91, 60])
+        self.assertEqual(records[0]["download_id"], "142535")
+        self.assertEqual(records[0]["policy"], "archived-recommended")
+        self.assertEqual(records[0]["available_since"], "1 January 2026")
+        self.assertNotIn(117, [record["take"] for record in records])
+
+    def test_archive_fails_closed_on_wrong_article_and_ambiguous_tar(self):
+        with self.assertRaises(m.FetchError):
+            m.parse_archive(archive(article_id="sk999999"), "R82")
+        ambiguous = ARCHIVE_SOLUTION.replace(
+            ">TAR</a></td></tr>",
+            '>TAR</a><a href="https://support.checkpoint.com/results/download/999999">TAR</a></td></tr>',
+            1,
+        )
+        with self.assertRaises(m.FetchError):
+            m.parse_archive(archive(ambiguous), "R82")
+
+    def test_available_catalog_combines_deduplicates_and_sorts(self):
+        duplicate_archive = ARCHIVE_SOLUTION.replace(
+            "<tr><td>91</td>",
+            '<tr><td>118</td><td colspan="3"><a href="https://support.checkpoint.com/results/download/144486">TAR</a></td></tr><tr><td>91</td>',
+            1,
+        )
+        responses = [CATALOG.encode(), archive(duplicate_archive).encode()]
+        with mock.patch.object(m, "fetch_bytes", side_effect=responses):
+            records = m.discover_available("R82")
+        self.assertEqual([record["take"] for record in records], [118, 107, 91, 60])
+        self.assertEqual(records[0]["policy"], "latest")
+
+    def test_exact_take_and_menu_selection(self):
+        records = m.parse_archive(archive(), "R82")
+        self.assertEqual(m.select_take(records, 91)["download_id"], "142535")
+        with self.assertRaises(m.FetchError):
+            m.select_take(records, 999)
+        with mock.patch("builtins.input", return_value="2"):
+            self.assertEqual(m.select_interactive(records)["take"], 60)
+        with mock.patch("builtins.input", return_value="0"):
+            with self.assertRaises(m.FetchError):
+                m.select_interactive(records)
+        self.assertIn("archived-recommended", m.format_available(records))
+
+    def test_menu_confirms_download_and_uses_human_output(self):
+        records = m.parse_archive(archive(), "R82")
+        enriched = {
+            **records[0],
+            "title": "R82 JHF Take 91",
+            "filename": "Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar",
+            "display_size": "2.3 GB",
+            "sha1": "a" * 40,
+            "sha256": "b" * 64,
+        }
+        downloaded = {**enriched, "path": "/tmp/jhf/Take91.tar", "verified": True}
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", ["cpuse_jhf_fetch.py", "--menu"]),
+            mock.patch.object(m, "discover_available", return_value=records),
+            mock.patch.object(m, "enrich_record", return_value=enriched),
+            mock.patch.object(m, "download", return_value=downloaded) as downloader,
+            mock.patch("builtins.input", side_effect=["1", "y"]),
+            mock.patch("sys.stdout", stdout),
+        ):
+            self.assertEqual(m.main(), 0)
+        downloader.assert_called_once()
+        self.assertIn("Selected: R82 Take 91", stdout.getvalue())
+        self.assertIn("Downloaded and verified: /tmp/jhf/Take91.tar", stdout.getvalue())
+        self.assertNotIn('"available"', stdout.getvalue())
+
+    def test_menu_decline_does_not_download(self):
+        records = m.parse_archive(archive(), "R82")
+        enriched = {
+            **records[0],
+            "title": "R82 JHF Take 91",
+            "filename": "Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar",
+            "display_size": "2.3 GB",
+            "sha1": "a" * 40,
+            "sha256": "b" * 64,
+        }
+        with (
+            mock.patch.object(sys, "argv", ["cpuse_jhf_fetch.py", "--menu"]),
+            mock.patch.object(m, "discover_available", return_value=records),
+            mock.patch.object(m, "enrich_record", return_value=enriched),
+            mock.patch.object(m, "download") as downloader,
+            mock.patch("builtins.input", side_effect=["1", "n"]),
+            mock.patch("sys.stdout", io.StringIO()) as stdout,
+        ):
+            self.assertEqual(m.main(), 0)
+        downloader.assert_not_called()
+        self.assertIn("Selection validated; no package downloaded.", stdout.getvalue())
+
+    def test_menu_ctrl_c_exits_cleanly(self):
+        records = m.parse_archive(archive(), "R82")
+        with (
+            mock.patch.object(sys, "argv", ["cpuse_jhf_fetch.py", "--menu"]),
+            mock.patch.object(m, "discover_available", return_value=records),
+            mock.patch("builtins.input", side_effect=KeyboardInterrupt),
+            mock.patch("sys.stderr", io.StringIO()) as stderr,
+            mock.patch("sys.stdout", io.StringIO()),
+        ):
+            self.assertEqual(m.main(), 130)
+        self.assertEqual(stderr.getvalue().strip(), "Cancelled.")
 
     def test_catalog_requires_recommended_take(self):
         with self.assertRaises(m.FetchError):
