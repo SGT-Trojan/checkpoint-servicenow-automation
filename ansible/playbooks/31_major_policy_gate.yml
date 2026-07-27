@@ -1,0 +1,44 @@
+---
+- name: "Major upgrade management policy gate - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    reports_dir: "{{ playbook_dir }}/../reports"
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+  tasks:
+    - name: Assert required inputs
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+          - activity_plan_file | default('') | length > 0
+          - phase in ['mixed-version-policy-gate', 'final-policy-install']
+        fail_msg: "CP_PASSWORD, CP_EXPERT_PASSWORD, activity_plan_file and policy phase are required."
+    - name: Run management policy gate
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/major_policy_gate_from_activity.py"
+          - --activity-plan-file
+          - "{{ activity_plan_file }}"
+          - --phase
+          - "{{ phase }}"
+          - --username
+          - admin
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: policy_gate_output
+      changed_when: true
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0755"
+    - name: Save policy gate report
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/31_major_policy_gate_{{ chg_number | default('unknown') }}_{{ phase }}.txt"
+        content: "{{ policy_gate_output.stdout }}\n{{ policy_gate_output.stderr }}\n"
+        mode: "0644"
+    - name: Show policy gate output
+      ansible.builtin.debug:
+        var: policy_gate_output.stdout_lines

@@ -1,0 +1,58 @@
+---
+- name: "Management API package execution - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    reports_dir: "{{ playbook_dir }}/../reports"
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+    api_step_slug: "{{ step | default('package_step') | regex_replace('[^A-Za-z0-9_.-]+', '_') | regex_replace('^_+|_+$', '') }}"
+    report_suffix: "{{ ((phase | default('')) ~ '_' ~ api_step_slug) | regex_replace('[^A-Za-z0-9_.-]+', '_') | regex_replace('^_+|_+$', '') }}"
+  tasks:
+    - name: Assert credentials, plan, phase, and step are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+          - activity_plan_file | default('') | length > 0
+          - step | default('') | length > 0
+          - phase in ['first-member', 'second-member']
+          - activity_plan.execution.deployment_backend | default('') == 'api'
+        fail_msg: "API execution requires credentials and an API-authorized cluster activity plan."
+
+    - name: Require explicit API execution approval
+      ansible.builtin.assert:
+        that:
+          - checkpoint_execute_api | default(false) | bool
+        fail_msg: "Management API package execution requires checkpoint_execute_api=true."
+
+    - name: Execute package through Management Web API
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/management_api_package_from_activity.py"
+          - --activity-plan-file
+          - "{{ activity_plan_file }}"
+          - --step
+          - "{{ step }}"
+          - --phase
+          - "{{ phase }}"
+          - --operation
+          - execute
+          - --execute
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: api_execute
+      changed_when: true
+
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Save API execution evidence
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/41_api_execute_{{ chg_number | default('unknown') }}_{{ report_suffix }}.txt"
+        content: "{{ api_execute.stdout }}\n{{ api_execute.stderr }}\n"
+        mode: "0600"
+

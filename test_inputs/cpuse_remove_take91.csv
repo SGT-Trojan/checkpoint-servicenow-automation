@@ -1,0 +1,2 @@
+sequence_number,action,package_name,sha1,sha256,reboot_expected
+1,remove,Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar,,,true

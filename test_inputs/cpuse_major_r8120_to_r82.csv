@@ -1,0 +1,2 @@
+sequence_number,action,package_name,package_type,sha1,sha256,reboot_expected,notes
+1,upgrade,blink_image_1.1_Check_Point_R82_T777_JHF_T60_SecurityGateway.tgz,blink,,,true,Governed R81.20 to R82 major version upgrade test

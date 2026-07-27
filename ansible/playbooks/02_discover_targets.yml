@@ -1,0 +1,52 @@
+---
+- name: "Discover Check Point targets - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    reports_dir: "{{ playbook_dir }}/../reports"
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+    discovery_report: "{{ reports_dir }}/02_discover_targets_{{ chg_number | default('unknown') }}.json"
+  tasks:
+    - name: Assert discovery inputs are available
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+          - mds_host | default('') | length > 0
+          - target_ips | default('') | length > 0
+          - change_id | default(0) | int >= 0
+        fail_msg: "CP_PASSWORD, CP_EXPERT_PASSWORD, mds_host, and target_ips are required for target discovery."
+
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Discover targets from MDS/CMA
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/discover_checkpoint_targets.py"
+          - --mds-host
+          - "{{ mds_host }}"
+          - --target-ips
+          - "{{ target_ips }}"
+          - --username
+          - admin
+          - --preferred-domain
+          - "{{ cma_name | default('') }}"
+          - --db-path
+          - "{{ playbook_dir }}/../../snow_lite.db"
+          - --change-id
+          - "{{ change_id }}"
+          - --output
+          - "{{ discovery_report }}"
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: discovery
+      changed_when: true
+
+    - name: Show discovery output
+      ansible.builtin.debug:
+        var: discovery.stdout_lines

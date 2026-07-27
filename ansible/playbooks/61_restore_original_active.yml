@@ -1,0 +1,45 @@
+---
+- name: "Restore original active member - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+    reports_dir: "{{ playbook_dir }}/../reports"
+  tasks:
+    - name: Assert credentials are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+        fail_msg: "CP_PASSWORD and CP_EXPERT_PASSWORD must be supplied via the Credential Vault."
+
+    - name: Restore original active ownership
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ scripts_dir }}/cluster_phase_control.py"
+          - restore-original-active
+          - --members
+          - "{{ member_a_ip | default('192.0.2.20') }}"
+          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - --username
+          - admin
+          - --state-file
+          - "{{ reports_dir }}/cluster_initial_state_{{ chg_number | default('unknown') }}.json"
+          - --icap-mode
+          - "{{ icap_mode | default('disabled') }}"
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: restore
+      changed_when: "'Moving ACTIVE state' in restore.stdout"
+
+    - name: Save restore output
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/61_restore_active_{{ chg_number | default('unknown') }}.txt"
+        content: "{{ restore.stdout }}\n{{ restore.stderr }}\n"
+        mode: "0644"
+
+    - name: Show restore results
+      ansible.builtin.debug:
+        var: restore.stdout_lines

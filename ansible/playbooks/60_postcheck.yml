@@ -1,0 +1,54 @@
+---
+- name: "Postcheck - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+    reports_dir: "{{ playbook_dir }}/../reports"
+  tasks:
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Assert credentials are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+        fail_msg: "CP_PASSWORD and CP_EXPERT_PASSWORD must be supplied via the Credential Vault."
+
+    - name: Run postcheck against target take
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ scripts_dir }}/postcheck_gateways.py"
+          - --members
+          - "{{ member_a_ip | default('192.0.2.20') }}"
+          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - --username
+          - admin
+          - --target-take
+          - "{{ target_take | default('91') }}"
+          - --icap-mode
+          - "{{ icap_mode | default('disabled') }}"
+          - --state-file
+          - "{{ reports_dir }}/cluster_initial_state_{{ chg_number | default('unknown') }}.json"
+          - --activity-plan-file
+          - "{{ activity_plan_file | default('') }}"
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: postcheck
+      changed_when: false
+
+    - name: Save postcheck output
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/60_postcheck_{{ chg_number | default('unknown') }}.txt"
+        content: "{{ postcheck.stdout }}\n{{ postcheck.stderr }}\n"
+        mode: "0644"
+
+    - name: Show postcheck results
+      ansible.builtin.debug:
+        var: postcheck.stdout_lines

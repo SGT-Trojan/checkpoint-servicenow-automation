@@ -1,0 +1,55 @@
+---
+- name: "Support capture diff - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    helper_path: "{{ playbook_dir }}/../../checkpoint_cluster_upgrade.py"
+    reports_dir: "{{ playbook_dir }}/../reports"
+    support_capture_dir: "{{ reports_dir }}/support_captures/{{ chg_number | default('unknown') }}"
+    diff_dir: "{{ reports_dir }}/support_diffs/{{ chg_number | default('unknown') }}"
+    baseline_label: "baseline-capture_{{ chg_number | default('unknown') }}"
+    final_label: "final-support-capture_{{ chg_number | default('unknown') }}"
+    member_ips: "{{ activity_plan.checkpoint.members | default([]) | map(attribute='ip') | list }}"
+  tasks:
+    - name: Ensure support diff directory exists
+      ansible.builtin.file:
+        path: "{{ diff_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Generate support capture diff per member
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ helper_path }}"
+          - --phase
+          - support-diff
+          - --support-output-dir
+          - "{{ diff_dir }}"
+          - --diff-before
+          - "{{ support_capture_dir }}/{{ baseline_label }}_{{ item }}_support_capture.txt"
+          - --diff-after
+          - "{{ support_capture_dir }}/{{ final_label }}_{{ item }}_support_capture.txt"
+          - --diff-output
+          - "{{ diff_dir }}/diff_{{ item }}_baseline_vs_final.txt"
+      loop: "{{ member_ips }}"
+      register: support_diffs
+      changed_when: true
+
+    - name: Save support diff summary
+      ansible.builtin.copy:
+        dest: "{{ diff_dir }}/support_diff_summary_{{ chg_number | default('unknown') }}.txt"
+        content: |-
+          Support diff summary for {{ chg_number | default('unknown') }}
+          {% for result in support_diffs.results | default([]) %}
+          member={{ result.item }} rc={{ result.rc }}
+          stdout={{ result.stdout }}
+          stderr={{ result.stderr }}
+          {% endfor %}
+        mode: "0644"
+
+    - name: Show support diff files
+      ansible.builtin.debug:
+        msg:
+          - "Support diff directory: {{ diff_dir }}"
+          - "Diff files: {{ support_diffs.results | default([]) | map(attribute='stdout') | list }}"

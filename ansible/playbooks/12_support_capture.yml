@@ -1,0 +1,59 @@
+---
+- name: "Support capture - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    helper_path: "{{ playbook_dir }}/../../checkpoint_cluster_upgrade.py"
+    reports_dir: "{{ playbook_dir }}/../reports"
+    support_capture_dir: "{{ reports_dir }}/support_captures/{{ chg_number | default('unknown') }}"
+    support_script_path: "{{ activity_plan.execution.support_capture_script | default(support_capture_script | default('')) }}"
+    capture_phase: "{{ phase | default('support-capture') }}"
+    capture_label: "{{ capture_phase }}_{{ chg_number | default('unknown') }}"
+    member_ips: "{{ activity_plan.checkpoint.members | default([]) | map(attribute='ip') | list }}"
+  tasks:
+    - name: Ensure support capture directory exists
+      ansible.builtin.file:
+        path: "{{ support_capture_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Assert credentials are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+        fail_msg: "CP_PASSWORD and CP_EXPERT_PASSWORD must be supplied via the Credential Vault."
+
+    - name: Assert support capture script path is configured
+      ansible.builtin.assert:
+        that:
+          - support_script_path | length > 0
+        fail_msg: "support_capture_script must be configured on the change before support capture can run."
+
+    - name: Run support capture script commands on gateways
+      ansible.builtin.command:
+        argv: "{{ ['python3', helper_path, '--members'] + member_ips + ['--username', 'admin', '--phase', 'support-capture', '--support-script', support_script_path, '--support-output-dir', support_capture_dir, '--support-label', capture_label, '--support-command-timeout', (support_command_timeout | default(300) | string)] }}"
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: support_capture
+      changed_when: true
+
+    - name: Save support capture run output
+      ansible.builtin.copy:
+        dest: "{{ support_capture_dir }}/{{ capture_label }}_controller_output.txt"
+        content: "{{ support_capture.stdout }}\n{{ support_capture.stderr }}\n"
+        mode: "0644"
+
+    - name: Find generated support capture files
+      ansible.builtin.find:
+        paths: "{{ support_capture_dir }}"
+        patterns: "{{ capture_label }}_*_support_capture.txt"
+      register: support_capture_files
+
+    - name: Show support capture files
+      ansible.builtin.debug:
+        msg:
+          - "Support capture label: {{ capture_label }}"
+          - "Support capture directory: {{ support_capture_dir }}"
+          - "Files: {{ support_capture_files.files | map(attribute='path') | list }}"

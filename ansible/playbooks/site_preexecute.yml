@@ -1,0 +1,7 @@
+---
+- import_playbook: 01_validate_activity_plan.yml
+- import_playbook: 00_precheck.yml
+- import_playbook: 06_validate_mds_package.yml
+- import_playbook: 11_capture_cluster_state.yml
+- import_playbook: 10_cdt_generate_candidates.yml
+- import_playbook: 22_monitor_gateways.yml

@@ -1,0 +1,44 @@
+# Credentials and local environment
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*credentials*
+*secrets*
+
+# Runtime and generated content
+runs/
+ansible/reports/
+ansible/generated_plans/
+test_outputs/
+distributables/
+distributable_build/vendor/
+*.log
+*.pid
+*.db
+*.sqlite*
+*.tgz
+*.tar
+*.tar.gz
+*.zip
+*.docx
+*.pdf
+*.pptx
+*.vsdx
+
+# Development caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

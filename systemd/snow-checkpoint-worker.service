@@ -1,0 +1,17 @@
+[Unit]
+Description=ServiceNow Check Point Automation Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/checkpoint-automation
+EnvironmentFile=/etc/snow-checkpoint-worker.env
+ExecStart=/opt/checkpoint-automation/.venv/bin/python /opt/checkpoint-automation/servicenow_checkpoint_worker.py --poll-interval 60
+Restart=always
+RestartSec=15
+User=checkpoint-auto
+Group=checkpoint-auto
+
+[Install]
+WantedBy=multi-user.target

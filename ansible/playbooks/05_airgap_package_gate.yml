@@ -1,0 +1,96 @@
+---
+- name: "Air-gap package staging gate - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    reports_dir: "{{ playbook_dir }}/../reports"
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+    staging_method_value: "{{ activity_plan.execution.staging_method | default(staging_method | default('scp_from_mds')) }}"
+    execution_method_value: "{{ activity_plan.execution.method | default(execution_method | default('')) }}"
+    direct_method: "{{ 'CDT' not in execution_method_value }}"
+  tasks:
+    - name: Assert credentials and activity plan are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+          - activity_plan_file | default('') | length > 0
+        fail_msg: "CP_PASSWORD, CP_EXPERT_PASSWORD, and activity_plan_file are required for air-gap package staging validation."
+
+    - name: Validate package files and checksums on MDS
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/validate_mds_packages.py"
+          - --activity-plan-file
+          - "{{ activity_plan_file }}"
+          - --username
+          - admin
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: mds_packages
+      changed_when: false
+
+    - name: Stage package files to gateways with CPRID when requested
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/stage_packages_cprid.py"
+          - --activity-plan-file
+          - "{{ activity_plan_file }}"
+          - --username
+          - admin
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: cprid_stage
+      changed_when: "'CPRID_STAGE_ACTION' in (cprid_stage.stdout | default(''))"
+      when: staging_method_value == 'cprid_from_mds'
+
+    - name: Explain supported air-gap staging modes
+      ansible.builtin.debug:
+        msg:
+          - "MDS package validation completed."
+          - "Selected staging method: {{ staging_method_value }}"
+          - "For CDT-based runs, CDT imports or uses the package from the MDS path; CPRID gateway copy is not required."
+          - "For direct CPUSE/Clish runs with cprid_from_mds, packages are copied from the MDS to each gateway before execution."
+          - "For other direct staging methods, packages must be manually pre-staged and explicitly confirmed before proceeding."
+
+
+    - name: Assert manual staging acknowledgement when required
+      ansible.builtin.assert:
+        that:
+          - package_stage_confirmed | default(false) | bool
+        fail_msg: >-
+          Direct gateway package staging has not been confirmed. Pass package_stage_confirmed=true only after
+          the required packages are present on the gateways, or select cprid_from_mds for automated MDS-to-gateway staging.
+      when:
+        - direct_method | bool
+        - staging_method_value != 'cprid_from_mds'
+        - package_stage_required | default(false) | bool
+
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Save air-gap gate output
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/05_airgap_package_gate_{{ chg_number | default('unknown') }}.txt"
+        content: |
+          MDS package validation stdout
+          -----------------------------
+          {{ mds_packages.stdout | default('') }}
+
+          MDS package validation stderr
+          -----------------------------
+          {{ mds_packages.stderr | default('') }}
+
+          CPRID staging stdout
+          --------------------
+          {{ cprid_stage.stdout | default('') }}
+
+          CPRID staging stderr
+          --------------------
+          {{ cprid_stage.stderr | default('') }}
+        mode: "0644"

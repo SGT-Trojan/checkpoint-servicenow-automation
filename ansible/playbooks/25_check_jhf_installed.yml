@@ -1,0 +1,70 @@
+---
+- name: "Check JHF installed - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    helper_path: "{{ playbook_dir }}/../../checkpoint_cluster_upgrade.py"
+    reports_dir: "{{ playbook_dir }}/../reports"
+    known_hosts_file: "{{ reports_dir }}/25_known_hosts"
+    ssh_options:
+      - "-o StrictHostKeyChecking=accept-new"
+      - "-o UserKnownHostsFile={{ known_hosts_file }}"
+      - "-o ConnectTimeout=15"
+      - "-o PreferredAuthentications=password,keyboard-interactive,publickey"
+      - "-o PubkeyAuthentication=yes"
+  tasks:
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Assert credentials and target take are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - target_take | default('') | length > 0
+        fail_msg: "CP_PASSWORD and target_take must be supplied."
+
+    - name: Verify target take on each member
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ scripts_dir | default(playbook_dir ~ '/../scripts') }}/cluster_phase_control.py"
+          - assert-member-take
+          - --members
+          - "{{ member_a_ip | default('192.0.2.20') }}"
+          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - --username
+          - admin
+          - --state-file
+          - "{{ reports_dir }}/cluster_initial_state_{{ chg_number | default('unknown') }}.json"
+          - --icap-mode
+          - "{{ icap_mode | default('disabled') }}"
+          - --target-host
+          - "{{ item }}"
+          - --target-take
+          - "{{ target_take }}"
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      loop:
+        - "{{ member_a_ip | default('192.0.2.20') }}"
+        - "{{ member_b_ip | default('192.0.2.21') }}"
+      register: jhf_evidence
+      changed_when: false
+
+    - name: Save JHF verification output
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/25_check_jhf_installed_{{ chg_number | default('unknown') }}.txt"
+        content: |
+          {% for result in jhf_evidence.results | default([]) %}
+          ===== {{ result.item }} =====
+          {{ result.stdout | default('') }}
+          {{ result.stderr | default('') }}
+          {% endfor %}
+        mode: "0644"
+
+    - name: Show JHF verification summary
+      ansible.builtin.debug:
+        var: jhf_evidence.results

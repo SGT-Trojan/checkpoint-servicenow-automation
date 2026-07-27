@@ -1,0 +1,90 @@
+---
+- name: "Validate ServiceNow activity plan - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    reports_dir: "{{ playbook_dir }}/../reports"
+  tasks:
+    - name: Assert activity plan was provided
+      ansible.builtin.assert:
+        that:
+          - activity_plan_file | default('') | length > 0
+          - activity_plan is mapping
+        fail_msg: "activity_plan_file and structured activity_plan must be supplied by ServiceNow automation."
+
+    - name: Verify generated activity plan file exists
+      ansible.builtin.stat:
+        path: "{{ activity_plan_file }}"
+      register: plan_file
+
+    - name: Assert generated activity plan file exists
+      ansible.builtin.assert:
+        that:
+          - plan_file.stat.exists
+        fail_msg: "Generated activity plan file does not exist on the Ansible controller."
+
+    - name: Validate required activity plan sections
+      ansible.builtin.assert:
+        that:
+          - activity_plan.schema_version | default('') | length > 0
+          - activity_plan.change.number | default('') == chg_number
+          - activity_plan.checkpoint.members | length > 0
+          - activity_plan.execution.staging_method | default('') | length > 0
+          - activity_plan.package_steps is sequence
+          - activity_plan.workflow_gates is sequence
+          - activity_plan.evidence.diff_required is defined
+        fail_msg: "Activity plan is missing required ServiceNow-to-Ansible contract data."
+
+    - name: Reject obvious package/version mismatches
+      ansible.builtin.assert:
+        that:
+          - not (
+              (activity_plan.checkpoint.current_version | default('') == 'R82' or activity_plan.checkpoint.target_version | default('') == 'R82')
+              and ((item.package_name | default('')) is search('R81_20|R81.20') or (item.source_path | default('')) is search('R81_20|R81.20'))
+            )
+          - not (
+              (activity_plan.checkpoint.current_version | default('') == 'R81.20' and activity_plan.checkpoint.target_version | default('') == 'R81.20')
+              and ((item.package_name | default('')) is search('R82') or (item.source_path | default('')) is search('R82'))
+            )
+        fail_msg: >-
+          Package {{ item.package_name | default(item.name) }} does not match the declared
+          current/target Check Point version {{ activity_plan.checkpoint.current_version }} ->
+          {{ activity_plan.checkpoint.target_version }}. Correct the CHG package metadata before execution.
+      loop: "{{ activity_plan.package_steps }}"
+      when: item.action | default('install') in ['install', 'upgrade']
+
+    - name: Check configured support capture script
+      ansible.builtin.stat:
+        path: "{{ activity_plan.execution.support_capture_script }}"
+      register: support_capture_script_stat
+      when: activity_plan.execution.support_capture_script | default('') | length > 0
+
+    - name: Assert configured support capture script exists
+      ansible.builtin.assert:
+        that:
+          - support_capture_script_stat.stat.exists
+        fail_msg: "Configured support capture script does not exist on the Ansible controller: {{ activity_plan.execution.support_capture_script }}"
+      when: activity_plan.execution.support_capture_script | default('') | length > 0
+
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Save validated activity plan snapshot
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/01_activity_plan_{{ chg_number | default('unknown') }}.json"
+        content: "{{ activity_plan | to_nice_json }}\n"
+        mode: "0644"
+
+    - name: Show activity plan summary
+      ansible.builtin.debug:
+        msg:
+          - "Change: {{ activity_plan.change.number }}"
+          - "Activity: {{ activity_plan.change.activity_type }}"
+          - "Target: {{ activity_plan.checkpoint.cluster_name | default('standalone') }} {{ activity_plan.checkpoint.current_version }} -> {{ activity_plan.checkpoint.target_version }} Take {{ activity_plan.checkpoint.target_take }}"
+          - "Members: {{ activity_plan.checkpoint.members | map(attribute='ip') | list | join(', ') }}"
+          - "Package steps: {{ activity_plan.package_steps | length }}"
+          - "Tester gate: {{ activity_plan.execution.tester_pause }}"
+          - "ICAP mode: {{ activity_plan.checkpoint.icap_mode }}"

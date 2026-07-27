@@ -1,0 +1,66 @@
+---
+- name: "ClusterXL failover - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+    reports_dir: "{{ playbook_dir }}/../reports"
+    cluster_state_file: "{{ reports_dir }}/cluster_initial_state_{{ chg_number | default('unknown') }}.json"
+  tasks:
+    - name: Assert credentials are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+        fail_msg: "CP_PASSWORD and CP_EXPERT_PASSWORD must be supplied via the Credential Vault."
+
+    - name: Read captured original cluster state
+      ansible.builtin.slurp:
+        src: "{{ cluster_state_file }}"
+      register: captured_cluster_state
+
+    - name: Derive failover target
+      ansible.builtin.set_fact:
+        derived_failover_target: >-
+          {{ failover_target | default((captured_cluster_state.content | b64decode | from_json).original_standby_host, true) }}
+
+    - name: Assert failover target is known
+      ansible.builtin.assert:
+        that:
+          - derived_failover_target | default('') | length > 0
+          - derived_failover_target in [member_a_ip | default('192.0.2.20'), member_b_ip | default('192.0.2.21')]
+        fail_msg: >-
+          Could not derive a valid failover target. Capture cluster state first or pass failover_target explicitly.
+
+    - name: Fail over to target member
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ scripts_dir }}/cluster_phase_control.py"
+          - failover-to
+          - --members
+          - "{{ member_a_ip | default('192.0.2.20') }}"
+          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - --username
+          - admin
+          - --state-file
+          - "{{ cluster_state_file }}"
+          - --icap-mode
+          - "{{ icap_mode | default('disabled') }}"
+          - --target-host
+          - "{{ derived_failover_target }}"
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: failover
+      changed_when: "'Moving ACTIVE state' in failover.stdout"
+
+    - name: Save failover output
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/23_failover_{{ chg_number | default('unknown') }}.txt"
+        content: "{{ failover.stdout }}\n{{ failover.stderr }}\n"
+        mode: "0644"
+
+    - name: Show failover results
+      ansible.builtin.debug:
+        var: failover.stdout_lines

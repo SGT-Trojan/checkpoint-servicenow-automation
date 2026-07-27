@@ -1,0 +1,60 @@
+---
+- name: "CDT candidate generation - {{ chg_number | default('N/A') }}"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    reports_dir: "{{ playbook_dir }}/../reports"
+    scripts_dir: "{{ playbook_dir }}/../scripts"
+    cdt_step_name: "{{ step if step | default('') | length > 0 else ((activity_plan.package_steps[0].name | default('package_step')) if activity_plan.package_steps | default([]) | length == 1 else 'package_step') }}"
+    cdt_step_slug: "{{ cdt_step_name | regex_replace('[^A-Za-z0-9_.-]+', '_') | regex_replace('^_+|_+$', '') }}"
+    cdt_plan_path: "/var/log/tmp/{{ chg_number | default('unknown') }}_{{ cdt_step_slug }}_cdt_plan.xml"
+    cdt_candidates_path: "/var/log/tmp/{{ chg_number | default('unknown') }}_{{ cdt_step_slug }}_cdt_candidates.csv"
+    report_suffix: "{{ ((phase | default('')) ~ '_' ~ cdt_step_slug) | regex_replace('[^A-Za-z0-9_.-]+', '_') | regex_replace('^_+|_+$', '') }}"
+  tasks:
+    - name: Assert credentials and activity plan are supplied
+      ansible.builtin.assert:
+        that:
+          - lookup('env', 'CP_PASSWORD') | length > 0
+          - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
+          - activity_plan_file | default('') | length > 0
+        fail_msg: "CP_PASSWORD, CP_EXPERT_PASSWORD, and activity_plan_file are required for real CDT candidate generation."
+
+    - name: Generate CDT deployment plan and candidates on MDS
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/generate_cdt_candidates_from_activity.py"
+          - --activity-plan-file
+          - "{{ activity_plan_file }}"
+          - --username
+          - admin
+          - --plan-path
+          - "{{ cdt_plan_path }}"
+          - --candidates-path
+          - "{{ cdt_candidates_path }}"
+          - --target-policy
+          - "{{ cdt_target_policy | default('standby') }}"
+          - --step
+          - "{{ step | default('') }}"
+      environment:
+        CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
+        CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
+      register: cdt_candidates
+      changed_when: "'CDT candidates path:' in cdt_candidates.stdout"
+
+    - name: Ensure reports directory exists
+      ansible.builtin.file:
+        path: "{{ reports_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Save CDT candidate generation output
+      ansible.builtin.copy:
+        dest: "{{ reports_dir }}/10_cdt_generate_candidates_{{ chg_number | default('unknown') }}_{{ report_suffix }}.txt"
+        content: "{{ cdt_candidates.stdout }}
+{{ cdt_candidates.stderr }}
+"
+        mode: "0644"
+
+    - name: Show CDT candidate output
+      ansible.builtin.debug:
+        var: cdt_candidates.stdout_lines
