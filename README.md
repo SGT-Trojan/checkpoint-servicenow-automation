@@ -15,7 +15,7 @@ Command-line execution and optional ServiceNow governance share the same
 readiness checks, rolling controls, evidence model, and resumable execution
 engine.
 
-[Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
+[Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
 
 </div>
 
@@ -77,6 +77,22 @@ The deployment backend is an implementation choice. Governance, readiness,
 cluster safety, tester gates, remediation, and evidence remain outside the
 backend so they cannot be skipped by changing transport.
 
+## Live Validation Snapshot
+
+| Control path | Live-validated scenarios |
+|---|---|
+| ServiceNow + CDT | R81.20 Take 76 install and uninstall; R81.20 build 634/Take 0 to R82 build 777/Take 60 major upgrade; real approvals, tester gates, remediation resume, and closure |
+| Command line + CDT | The same R81.20 Take 76 and R81.20-to-R82 sequence with runner-level gates; R82 Take 60 to Recommended Take 107 rolling install |
+| Command line + Management API | R81.20 Take 76 install and R81.20-to-R82 major upgrade; Take 76 removal through the documented guarded direct CPUSE fallback because the tested API rejected safe per-member uninstall semantics |
+| Deployment Agent | ServiceNow-driven idempotent workflow validation for build 2771 on both members using the dedicated dual-member path |
+
+These are evidence points from a two-member lab cluster, not a vendor support
+matrix or a claim that adjacent releases are automatically compatible. The
+major-upgrade source was R81.20 Take 0 after Take 76 removal; a direct R81.20
+Take 76 to R82 transition has not been separately certified. See the
+[complete certification matrix](docs/CERTIFIED_SCENARIOS.md) for dates, gates,
+review status, limitations, and untested combinations.
+
 ## Choose an Operating Mode
 
 | Goal | Start here |
@@ -84,6 +100,7 @@ backend so they cannot be skipped by changing transport.
 | Run directly from a controlled automation host | [Architecture and engineering guide](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) |
 | Reproduce the full ServiceNow-governed implementation | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) |
 | Understand the request-to-completion lifecycle | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) |
+| Review exactly which versions and paths were exercised live | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) |
 | Inventory installed patches across managed gateways | [Patch inventory guide](tools/CHECKPOINT_PATCH_INVENTORY.md) |
 | Discover or securely download a JHF | [JHF currency and download guide](tools/JHF_CURRENCY_AND_DOWNLOAD.md) |
 | Assess Deployment Agent currency | [Deployment Agent currency guide](tools/DEPLOYMENT_AGENT_CURRENCY.md) |
