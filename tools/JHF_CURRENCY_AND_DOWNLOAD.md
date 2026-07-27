@@ -14,6 +14,14 @@ Do not automatically install Latest in production. Discovery and download can be
 
 Older Takes are not currency recommendations. Select one only for a controlled compatibility, rollback, reproduction, or lab requirement. The archive does not promise every historical or non-Recommended Take, and this tool does not use an older package to automate a downgrade.
 
+Some older Support Center records have a stale `versionDisplayName` even though
+the official archive section, display title, and canonical filename identify the
+requested release. This mismatch is tolerated only for an archived-Recommended
+record when all three authoritative identifiers agree on the exact release and
+Take and both published hashes are present. The menu prints a notice containing
+the stale label. Current Recommended and Latest records still require an exact
+metadata release match.
+
 ## Requirements
 
 - Python 3.9 or later
@@ -131,4 +139,4 @@ python3 -m unittest discover -s tools/tests -v
 python3 -m py_compile tools/cpuse_jhf_fetch.py
 ```
 
-The tests use offline HTML/JSON fixtures and cover policy separation, archived-release filtering, ambiguous archive rejection, exact/menu selection, menu download confirmation and refusal, clean cancellation, release URL mapping, metadata mismatches, canonical R81.20 filenames, checksum parsing, trusted signed URLs, and verified local-file reuse.
+The tests use offline HTML/JSON fixtures and cover policy separation, archived-release filtering, ambiguous archive rejection, exact/menu selection, menu download confirmation and refusal, clean cancellation, release URL mapping, metadata mismatches, narrowly corroborated stale archive labels, canonical R81.20 filenames, checksum parsing, trusted signed URLs, and verified local-file reuse.

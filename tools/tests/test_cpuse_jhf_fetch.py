@@ -55,9 +55,11 @@ def archive(solution=ARCHIVE_SOLUTION, article_id="sk174185"):
     return f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script>'
 
 
-def detail(version="R82", take=107, filename=None, sha1="a" * 40, sha256="b" * 64):
+def detail(
+    version="R82", take=107, filename=None, sha1="a" * 40, sha256="b" * 64, title=None
+):
     item = {
-        "title": f"{version} JHF Take {take}",
+        "title": title or f"{version} JHF Take {take}",
         "version": version,
         "fileName": filename or f"Check_Point_{version}_jumbo_hf_main_Bundle_T{take}_FULL.tar",
         "datePublished": "2026-06-15",
@@ -109,6 +111,39 @@ class JhfFetchTests(unittest.TestCase):
                 ),
                 expected,
             )
+
+    def test_archived_record_accepts_stale_version_only_with_matching_title(self):
+        expected = {
+            "version": "R81.20",
+            "take": 10,
+            "download_id": "127615",
+            "policy": "archived-recommended",
+        }
+        stale = detail(
+            version="R81 (EOS)",
+            take=10,
+            title="R81.20 Jumbo Hotfix Accumulator Recommended Jumbo Take 10",
+            filename="Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T10_FULL.tar",
+        )
+        parsed = m.parse_detail(stale, expected)
+        self.assertTrue(parsed["metadata_version_mismatch"])
+        self.assertEqual(parsed["metadata_version"], "R81 (EOS)")
+        self.assertIn("archive, title, and filename identify R81.20", m.format_selected(parsed))
+
+        with self.assertRaises(m.FetchError):
+            m.parse_detail(
+                detail(
+                    version="R81 (EOS)",
+                    take=10,
+                    title="R81 Jumbo Hotfix Accumulator Take 10",
+                    filename="Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T10_FULL.tar",
+                ),
+                expected,
+            )
+
+        current = {**expected, "policy": "recommended"}
+        with self.assertRaises(m.FetchError):
+            m.parse_detail(stale, current)
 
     def test_archive_filters_release_and_returns_official_tar_records(self):
         records = m.parse_archive(archive(), "R82")

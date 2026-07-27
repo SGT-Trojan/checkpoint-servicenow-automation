@@ -248,17 +248,30 @@ def parse_detail(raw: str, expected: dict[str, object]) -> dict[str, object]:
         raise FetchError(f"invalid download metadata: {exc}") from exc
 
     version = str(item.get("version") or "")
+    title = str(item.get("title") or "")
     filename = str(item.get("fileName") or "")
     sha1 = str(item.get("sha1") or "").lower()
     sha256 = str(item.get("sha256") or "").lower()
-    version_token = str(expected["version"]).replace(".", "_")
+    expected_version = str(expected["version"])
+    expected_take = int(expected["take"])
+    version_token = expected_version.replace(".", "_")
     expected_pattern = re.compile(
         rf"Check_Point_{re.escape(version_token)}_JUMBO_HF_MAIN_Bundle_"
-        rf"T{int(expected['take'])}_FULL\.tar",
+        rf"T{expected_take}_FULL\.tar",
         re.I,
     )
-    if version != expected["version"]:
-        raise FetchError(f"metadata release mismatch: expected {expected['version']}, got {version}")
+    archived_title_matches = bool(
+        re.search(
+            rf"^{re.escape(expected_version)}(?:\s|$).*\bTake\s+{expected_take}\b",
+            title,
+            re.I,
+        )
+    )
+    metadata_version_mismatch = version != expected_version
+    if metadata_version_mismatch and not (
+        expected.get("policy") == "archived-recommended" and archived_title_matches
+    ):
+        raise FetchError(f"metadata release mismatch: expected {expected_version}, got {version}")
     if not expected_pattern.fullmatch(filename):
         raise FetchError(
             f"unexpected package filename for {expected['version']} Take {expected['take']}: {filename}"
@@ -269,9 +282,11 @@ def parse_detail(raw: str, expected: dict[str, object]) -> dict[str, object]:
         raise FetchError("download metadata is missing a valid SHA256")
     return {
         **expected,
-        "title": item.get("title"),
+        "title": title,
         "filename": filename,
         "published": item.get("datePublished"),
+        "metadata_version": version,
+        "metadata_version_mismatch": metadata_version_mismatch,
         "display_size": item.get("size"),
         "sha1": sha1,
         "sha256": sha256,
@@ -435,15 +450,20 @@ def select_interactive(records: list[dict[str, object]]) -> dict[str, object]:
 
 
 def format_selected(record: dict[str, object]) -> str:
-    return "\n".join(
-        (
-            f"Selected: {record['version']} Take {record['take']} ({record['policy']})",
-            f"Title:    {record.get('title') or '-'}",
-            f"File:     {record.get('filename') or '-'}",
-            f"Size:     {record.get('display_size') or '-'}",
-            f"SHA256:   {record.get('sha256') or '-'}",
+    lines = [
+        f"Selected: {record['version']} Take {record['take']} ({record['policy']})",
+        f"Title:    {record.get('title') or '-'}",
+        f"File:     {record.get('filename') or '-'}",
+        f"Size:     {record.get('display_size') or '-'}",
+        f"SHA256:   {record.get('sha256') or '-'}",
+    ]
+    if record.get("metadata_version_mismatch"):
+        lines.append(
+            "Notice:   Check Point labels this record as "
+            f"{record.get('metadata_version')}; archive, title, and filename identify "
+            f"{record['version']}."
         )
-    )
+    return "\n".join(lines)
 
 
 def confirm_download(record: dict[str, object], destination: Path) -> bool:
