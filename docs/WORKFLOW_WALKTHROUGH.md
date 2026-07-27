@@ -6,11 +6,11 @@ This sanitized walkthrough describes the implemented control flow. All names, ad
 
 1. Firewall Engineer opens the Service Portal → Service Catalog → Check Point Firewall Automation → CheckPoint FW Maintenance Activity (the single catalog item; the old Patch/Upgrade items are retired).
 2. The engineer fills the simplified form:
-   - Activity Type — must explicitly pick one of three: Version Upgrade Activity / Software Patch Activity / Deployment Agent Install (no default).
-   - Environment, ICAP Check Mode, Target Firewall IPs, MDS Host/IP, Current/Target Check Point Version.
-   - CPUSE Package (mandatory) — downloads `CPUSE_Package_Template.csv` from the link under the field, fills `sequence_number, action (install/uninstall/upgrade), package_name, sha1, sha256, package_type, notes`, uploads it. JHF aliases (Take 91 / T91 / JHF_T91) are allowed; automation resolves them.
-   - CPUSE Dependency Checklist (optional) — `expected_state (Present/Not Present), package_name, notes`.
-   - Preserve Original Active Member, Tester Validation Gate, requested maintenance window, Special Instructions.
+   - **Activity Type** — must explicitly pick one of three: Version Upgrade Activity / Software Patch Activity / Deployment Agent Install (no default).
+   - **Environment**, **ICAP Check Mode**, **Target Firewall IPs**, **MDS Host/IP**, **Current/Target Check Point Version**.
+   - **CPUSE Package** (mandatory) — downloads `CPUSE_Package_Template.csv` from the link under the field, fills `sequence_number, action (install/uninstall/upgrade), package_name, sha1, sha256, package_type, notes`, uploads it. JHF aliases (Take 91 / T91 / JHF_T91) are allowed; automation resolves them.
+   - **CPUSE Dependency Checklist** (optional) — `expected_state (Present/Not Present), package_name, notes`.
+   - **Preserve Original Active Member**, **Tester Validation Gate**, requested maintenance window, **Special Instructions**.
    - The engineer does not choose an execution engine, staging method, package directory, CMA, or credentials — backend policy owns those (CDT for package execution, CPRID from MDS, `/var/log/tmp`, SSH under the hood for health checks).
 3. Order Now → REQ is created (e.g., REQ_EXAMPLE).
 
