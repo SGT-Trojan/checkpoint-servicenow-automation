@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-01-01T00:00:00Z",
+  "change": {
+    "number": "MANUAL_EXAMPLE",
+    "activity_type": "Software Patch Activity",
+    "state": "Assess",
+    "environment": "lab"
+  },
+  "checkpoint": {
+    "current_version": "R82",
+    "target_version": "R82",
+    "target_take": "",
+    "cluster_name": "EXAMPLE-CLUSTER",
+    "cluster_mode": "cluster",
+    "mds_host": "192.0.2.10",
+    "cma_name": "EXAMPLE_CMA_Server",
+    "domain": "EXAMPLE-DOMAIN",
+    "cma_ip": "192.0.2.11",
+    "target_ips": ["192.0.2.20", "192.0.2.21"],
+    "policy_package": "EXAMPLE-POLICY",
+    "members": [
+      {
+        "slot": "member_a",
+        "hostname": "EXAMPLE-GW-A",
+        "ip": "192.0.2.20",
+        "management_ip": "192.0.2.20",
+        "access_ip": "192.0.2.20"
+      },
+      {
+        "slot": "member_b",
+        "hostname": "EXAMPLE-GW-B",
+        "ip": "192.0.2.21",
+        "management_ip": "192.0.2.21",
+        "access_ip": "192.0.2.21"
+      }
+    ],
+    "preserve_original_active": true,
+    "original_active_member": "",
+    "require_one_active_member": true,
+    "icap_mode": "required"
+  },
+  "execution": {
+    "method": "CDT (Central Deployment Tool)",
+    "deployment_backend": "cdt",
+    "staging_method": "cprid_from_mds",
+    "package_source_dir": "/var/log/tmp",
+    "tester_pause": true,
+    "support_capture_script": ""
+  },
+  "package_steps": [],
+  "workflow_gates": [],
+  "evidence": {
+    "support_capture_pre": false,
+    "support_capture_after_member_complete": false,
+    "support_capture_final": false,
+    "diff_required": false,
+    "requirements": "Offline structure validation only"
+  }
+}

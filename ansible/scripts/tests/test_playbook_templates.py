@@ -33,6 +33,11 @@ class PlaybookTemplateTests(unittest.TestCase):
         self.assertIn("item.checksum_sha1", text)
         self.assertIn("item.checksum_sha256", text)
 
+    def test_monitor_playbook_uses_the_helper_jsonl_option(self) -> None:
+        text = (ROOT / "playbooks" / "22_monitor_gateways.yml").read_text()
+        self.assertIn("--output-jsonl", text)
+        self.assertNotIn("--report", text)
+
 
 
 if __name__ == "__main__":

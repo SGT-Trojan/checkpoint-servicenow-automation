@@ -12,9 +12,21 @@
 Run it directly from an automation host or place ServiceNow in front of it.
 Both paths use the same prechecks, member order, pause points, and run state.
 
-[Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
+[Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Component reference](docs/COMPONENT_REFERENCE.md) | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
 
 </div>
+
+## Contents
+
+- [What This Repository Provides](#what-this-repository-provides)
+- [Live Validation Snapshot](#live-validation-snapshot)
+- [Quick Start](#quick-start)
+- [Documentation](#documentation)
+- [Execution Architecture](#execution-architecture)
+- [Repository Map](#repository-map)
+- [Validate a Checkout](#validate-a-checkout)
+- [Scope](#scope)
+- [License](#license)
 
 > [!CAUTION]
 > This software can change packages, policy state, and cluster ownership. Start
@@ -35,45 +47,6 @@ Both paths use the same prechecks, member order, pause points, and run state.
 | Recovery | Durable phase state, delayed tester gates, engineer remediation, and resume from the failed phase |
 | Package tooling | Current and archived Recommended JHF discovery, interactive selection, resumable download, and SHA1/SHA256 verification |
 
-## Execution Architecture
-
-```mermaid
-flowchart LR
-    USER[Operator or requester]
-    SN[ServiceNow governance]
-    CLI[Command-line runner]
-    READY[Readiness and target resolution]
-    ENGINE[Resumable orchestration engine]
-    BACKEND{Deployment backend}
-    CDT[CDT]
-    API[Management Web API]
-    MDS[MDS and CMA]
-    FW1[Cluster member 1]
-    GATE[Tester or engineer gate]
-    FW2[Cluster member 2]
-    FINAL[Final validation and evidence]
-
-    USER --> SN
-    USER --> CLI
-    SN --> ENGINE
-    CLI --> ENGINE
-    ENGINE --> READY
-    READY --> MDS
-    READY --> BACKEND
-    BACKEND --> CDT
-    BACKEND --> API
-    CDT --> FW1
-    API --> FW1
-    FW1 --> GATE
-    GATE --> FW2
-    FW2 --> FINAL
-    FINAL --> SN
-```
-
-The backend is transport. Target checks, member order, failover control,
-human gates, and evidence collection run outside it, so switching backends
-cannot skip them.
-
 ## Live Validation Snapshot
 
 | Control path | Live-validated scenarios |
@@ -89,21 +62,6 @@ major-upgrade source was R81.20 Take 0 after Take 76 removal; a direct R81.20
 Take 76 to R82 transition has not been separately certified. See the
 [complete certification matrix](docs/CERTIFIED_SCENARIOS.md) for dates, gates,
 review status, limitations, and untested combinations.
-
-## Choose an Operating Mode
-
-| Goal | Start here |
-|---|---|
-| Run directly from a controlled automation host | [Architecture and engineering guide](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) |
-| Reproduce the full ServiceNow-governed implementation | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) |
-| Understand the request-to-completion lifecycle | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) |
-| Review exactly which versions and paths were exercised live | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) |
-| Inventory installed patches across managed gateways | [Patch inventory guide](tools/CHECKPOINT_PATCH_INVENTORY.md) |
-| Discover or securely download a JHF | [JHF currency and download guide](tools/JHF_CURRENCY_AND_DOWNLOAD.md) |
-| Assess Deployment Agent currency | [Deployment Agent currency guide](tools/DEPLOYMENT_AGENT_CURRENCY.md) |
-
-ServiceNow is optional. The command-line runner uses the same Ansible-driven
-maintenance phases without requiring a ServiceNow instance.
 
 ## Quick Start
 
@@ -139,6 +97,34 @@ The menu distinguishes current Recommended, current Latest, and archived
 Recommended Takes. A selected package is checked against official metadata and
 both published hashes before it is accepted.
 
+## Documentation
+
+| Goal | Start here |
+|---|---|
+| Run directly from a controlled automation host | [Architecture and engineering guide](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) |
+| Reuse individual scripts or playbooks | [Component and integration reference](docs/COMPONENT_REFERENCE.md) |
+| Reproduce the full ServiceNow-governed implementation | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) |
+| Understand the request-to-completion lifecycle | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) |
+| Review exactly which versions and paths were exercised live | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) |
+| Inventory installed patches across managed gateways | [Patch inventory guide](tools/CHECKPOINT_PATCH_INVENTORY.md) |
+| Discover or securely download a JHF | [JHF currency and download guide](tools/JHF_CURRENCY_AND_DOWNLOAD.md) |
+| Assess Deployment Agent currency | [Deployment Agent currency guide](tools/DEPLOYMENT_AGENT_CURRENCY.md) |
+
+ServiceNow is optional. The command-line runner uses the same Ansible-driven
+maintenance phases without requiring a ServiceNow instance.
+
+## Execution Architecture
+
+<a href="docs/diagrams/execution-architecture.svg">
+  <img src="docs/diagrams/execution-architecture.svg" width="100%" alt="Execution architecture showing optional ServiceNow governance, the automation host, Check Point management, standby-first member sequencing, a Closed Complete human gate, final validation, and the evidence and resume loop.">
+</a>
+
+<p align="center"><sub><a href="docs/diagrams/execution-architecture.svg">Open the architecture diagram at full size</a></sub></p>
+
+The backend is transport. Target checks, member order, failover control,
+human gates, and evidence collection run outside it, so switching backends
+cannot skip them.
+
 ## Repository Map
 
 ```text
@@ -150,6 +136,7 @@ ansible/
 docs/                        Architecture, workflow, and ServiceNow build guides
 systemd/                     Long-running worker service definitions
 test_inputs/                 Sanitized activity-plan examples
+examples/                    Standalone helper and playbook examples
 tools/                       JHF, Deployment Agent, inventory, and hygiene utilities
 checkpoint_cluster_upgrade.py
 servicenow_checkpoint_runner.py
@@ -161,7 +148,7 @@ servicenow_checkpoint_worker.py
 ```bash
 python3 -m unittest discover -s ansible/scripts/tests -v
 python3 -m unittest discover -s tools/tests -v
-for playbook in ansible/playbooks/*.yml; do
+for playbook in ansible/playbooks/*.yml examples/playbooks/*.yml; do
   ansible-playbook --syntax-check "$playbook" -i ansible/inventory/hosts.yml
 done
 python3 tools/scan_public_repository.py .

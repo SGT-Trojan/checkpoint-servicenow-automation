@@ -29,8 +29,8 @@
           - "3"
           - --interval
           - "10"
-          - --report
-          - "{{ reports_dir }}/22_monitor_{{ chg_number | default('unknown') }}.txt"
+          - --output-jsonl
+          - "{{ reports_dir }}/22_monitor_{{ chg_number | default('unknown') }}.jsonl"
       environment:
         CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
         CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
