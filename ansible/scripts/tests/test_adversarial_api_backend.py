@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Kimi adversarial fixtures for codex/api-deployment-backend 62c84e0.
+"""Adversarial regression fixtures for the Management API deployment backend.
 
-test_second_member_uninstall_must_resolve_unique_union_identity is a
-REPRODUCTION test for blocking finding A1: it encodes the required behavior
-and FAILS against the reviewed commit. test_take_number_jhf_token_precedence
-documents finding A3 (also failing against the reviewed commit).
+Covers rolling-uninstall identity resolution, divergent member inventories,
+absent packages, and JHF Take parsing precedence.
 """
 from __future__ import annotations
 
