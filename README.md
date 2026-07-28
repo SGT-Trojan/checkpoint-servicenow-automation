@@ -12,7 +12,7 @@
 Run it directly from an automation host or place ServiceNow in front of it.
 Both paths use the same prechecks, member order, pause points, and run state.
 
-[Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Component reference](docs/COMPONENT_REFERENCE.md) | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
+[Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [CDT and Management API](docs/CDT_AND_MANAGEMENT_API.md) | [Component reference](docs/COMPONENT_REFERENCE.md) | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
 
 </div>
 
@@ -102,6 +102,7 @@ both published hashes before it is accepted.
 | Goal | Start here |
 |---|---|
 | Run directly from a controlled automation host | [Architecture and engineering guide](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) |
+| Choose between CDT and Management API deployment | [CDT and Management API deployment](docs/CDT_AND_MANAGEMENT_API.md) |
 | Reuse individual scripts or playbooks | [Component and integration reference](docs/COMPONENT_REFERENCE.md) |
 | Reproduce the full ServiceNow-governed implementation | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) |
 | Understand the request-to-completion lifecycle | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) |

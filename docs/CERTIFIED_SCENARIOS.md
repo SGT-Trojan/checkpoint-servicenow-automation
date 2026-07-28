@@ -73,6 +73,8 @@ to the MDS, and installed it one standby member at a time:
 
 The isolated Management API backend was live-tested on 2026-07-27. It was not
 selected by the ServiceNow catalog, and no successful API run invoked CDT.
+See [CDT and Management API deployment](CDT_AND_MANAGEMENT_API.md) for the
+command, transport, cluster-strategy, and script-API boundaries.
 These runs used a lab governance override and simulated tester gate.
 
 | Activity | Starting state | Ending state | Execution path | Result |

@@ -217,6 +217,10 @@ transport/auth failure, and 64 invalid invocation.
 
 ## 5. Ansible Playbook Variable Reference
 
+For the distinction between CDT, Management API Central Deployment, this
+repository's SSH-carried `mgmt_cli` backend, and the corresponding
+`check_point.mgmt` modules, see `CDT_AND_MANAGEMENT_API.md`.
+
 All playbooks target `localhost`. `CP_PASSWORD` and `CP_EXPERT_PASSWORD` are
 required in the environment unless the row says offline. `chg_number` is
 optional for most report names but should always be supplied for traceability.
