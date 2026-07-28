@@ -349,7 +349,7 @@ Major Version Upgrade also uses its own dedicated branch rather than the generic
 
 For each phase, the runner posts a concise CHG note. A ServiceNow mirror business rule copies the authoritative automation notes to the Implementation CTASK.
 
-At tester gate, the runner stops intentionally. The worker records `waiting_tester` and resumes from `second-member` only after the dedicated tester CTASK is closed Complete or Skipped.
+At tester gate, the runner stops intentionally. The worker records `waiting_tester` and resumes from `second-member` only after the dedicated tester CTASK is Closed Complete.
 
 On failure, the runner writes:
 
@@ -712,7 +712,7 @@ Happens before CHG creation. Failed automated readiness creates manual Firewall 
 
 ### Implementation Remediation
 
-Happens after CHG reaches Implement and runner execution fails. The worker creates an Engineer Remediation CTASK, records failed phase/playbook/step/log, and waits. Resume requires approved resume status plus Closed Complete/Skipped state.
+Happens after CHG reaches Implement and runner execution fails. The worker creates an Engineer Remediation CTASK, records failed phase/playbook/step/log, and waits. For engineer remediation only, resume requires both an explicit approved resume status and a Closed Complete or Closed Skipped task state; unlike the tester gate, task closure alone never authorizes execution.
 
 Auto-retry is intentionally avoided because a failed firewall change may indicate real cluster, package, or management drift.
 
@@ -727,7 +727,7 @@ A successful run should show:
 - Phase notes posted.
 - First member package action complete.
 - Failover complete.
-- Tester validation CTASK Closed Complete or Skipped.
+- Tester validation CTASK Closed Complete.
 - Second member package action complete.
 - Original active restored when configured.
 - Final support capture complete.
@@ -840,7 +840,7 @@ CHG not starting:
 
 Paused at tester gate:
 
-- Close `Tester validation gate - Check Point automation` Complete or Skipped after validation.
+- Close `Tester validation gate - Check Point automation` as Closed Complete after validation.
 
 Engineer remediation created:
 
