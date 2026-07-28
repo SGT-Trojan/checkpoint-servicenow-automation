@@ -27,12 +27,6 @@
 - [Scope](#scope)
 - [License](#license)
 
-> [!CAUTION]
-> This software can change packages, policy state, and cluster ownership. Start
-> with offline tests and read-only discovery in a non-production environment.
-> Resolve every target to one managed object, verify package hashes, change one
-> member at a time, and stop for tester or remediation tasks when prompted.
-
 ## What This Repository Provides
 
 Run the workflow directly from an automation host, or use ServiceNow as its
@@ -63,19 +57,26 @@ and resume state.
 
 | Control path | Live-validated scenarios |
 |---|---|
-| ServiceNow + CDT | R81.20 Take 76 install and uninstall; R81.20 build 634/Take 0 to R82 build 777/Take 60 major upgrade; real approvals, tester gates, remediation resume, and closure |
+| ServiceNow + CDT | R81.20 Take 76 install and uninstall; R81.20 build 634 with no separately installed JHF to R82 build 777/Take 60 major upgrade; real approvals, tester gates, remediation resume, and closure |
 | Command line + CDT | The same R81.20 Take 76 and R81.20-to-R82 sequence with runner-level gates; R82 Take 60 to Recommended Take 107 rolling install |
 | Command line + Management API | R81.20 Take 76 install and R81.20-to-R82 major upgrade; Take 76 removal through the documented guarded direct CPUSE fallback because the tested API rejected safe per-member uninstall semantics |
 | Deployment Agent | ServiceNow-driven idempotent workflow validation for build 2771 on both members using the dedicated dual-member path |
 
 These are evidence points from a two-member lab cluster, not a vendor support
 matrix or a claim that adjacent releases are automatically compatible. The
-major-upgrade source was R81.20 Take 0 after Take 76 removal; a direct R81.20
-Take 76 to R82 transition has not been separately certified. See the
+major-upgrade source was R81.20 build 634 after Take 76 removal, with no
+separately installed JHF; a direct R81.20 Take 76 to R82 transition has not
+been separately certified. See the
 [complete certification matrix](docs/CERTIFIED_SCENARIOS.md) for dates, gates,
 review status, limitations, and untested combinations.
 
 ## Quick Start
+
+> [!CAUTION]
+> This software can change packages, policy state, and cluster ownership. Start
+> with offline tests and read-only discovery in a non-production environment.
+> Resolve every target to one managed object, verify package hashes, change one
+> member at a time, and stop for tester or remediation tasks when prompted.
 
 ```bash
 git clone https://github.com/SGT-Trojan/checkpoint-servicenow-automation.git
