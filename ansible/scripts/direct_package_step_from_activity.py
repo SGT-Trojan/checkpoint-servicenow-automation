@@ -42,19 +42,25 @@ def member_ips_for_phase(plan: dict, phase: str, reports_dir: Path) -> list[str]
     if cluster_mode == 'standalone' or len(members) == 1:
         return [members[0]['ip']]
 
-    chg_number = (plan.get('change') or {}).get('number', 'unknown')
-    state = load_cluster_state(reports_dir, chg_number)
-    original_active = state.get('original_active_host') or checkpoint.get('original_active_member')
-    original_standby = state.get('original_standby_host')
-
-    member_ips = [m['ip'] for m in members]
-    if phase == 'first-member':
-        return [original_standby] if original_standby else [member_ips[1]]
-    if phase == 'second-member':
-        return [original_active] if original_active else [member_ips[0]]
-    if phase == 'install-deployment-agent':
+    member_ips = [m["ip"] for m in members]
+    if phase == "install-deployment-agent":
         return member_ips
-    raise SystemExit(f'ERROR: unsupported direct package phase {phase!r}')
+    if phase not in {"first-member", "second-member"}:
+        raise SystemExit(f"ERROR: unsupported direct package phase {phase!r}")
+
+    chg_number = (plan.get("change") or {}).get("number", "unknown")
+    state = load_cluster_state(reports_dir, chg_number)
+    original_active = state.get("original_active_host")
+    original_standby = state.get("original_standby_host")
+    if not original_active or not original_standby:
+        raise SystemExit(
+            f"ERROR: captured cluster state for {chg_number} must identify original active and standby members"
+        )
+    if original_active == original_standby or {original_active, original_standby} != set(member_ips):
+        raise SystemExit(
+            f"ERROR: captured cluster state for {chg_number} does not match the activity-plan members"
+        )
+    return [original_standby if phase == "first-member" else original_active]
 
 
 def package_identifier(step: dict) -> str:

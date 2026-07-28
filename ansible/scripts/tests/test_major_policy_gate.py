@@ -53,6 +53,26 @@ class MajorPolicyGateTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "bad domain"):
             policy_gate.api_json(Session([error]), "mgmt_cli show domains")
 
+    def test_policy_tasks_require_explicit_status_evidence(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "no status values"):
+            policy_gate.summarize_task("partial", {"tasks": [{"task-id": "1"}]}, True)
+        with self.assertRaisesRegex(RuntimeError, "no status values"):
+            policy_gate.summarize_task("final", {"tasks": [{"task-id": "1"}]}, False)
+
+    def test_partial_policy_requires_at_least_one_success(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "no successful"):
+            policy_gate.summarize_task(
+                "partial", {"tasks": [{"status": "failed"}, {"status": "failed"}]}, True
+            )
+        policy_gate.summarize_task(
+            "partial", {"tasks": [{"status": "succeeded"}, {"status": "failed"}]}, True
+        )
+
+    def test_final_policy_rejects_failure_or_warning(self) -> None:
+        for status in ("failed", "warning"):
+            with self.subTest(status=status), self.assertRaises(RuntimeError):
+                policy_gate.summarize_task("final", {"tasks": [{"status": status}]}, False)
+
     def test_main_separates_runtime_cma_from_api_domain(self) -> None:
         plan = {
             "checkpoint": {

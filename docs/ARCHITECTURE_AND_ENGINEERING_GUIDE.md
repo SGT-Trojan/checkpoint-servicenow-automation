@@ -4,7 +4,7 @@ Audience: automation engineers responsible for operating, extending, or producti
 
 This document describes the full architecture: ServiceNow request governance, the local workers, the runner, Ansible playbooks, helper scripts, Check Point MDS and gateway interactions, evidence, logs, gates, remediation, and known operational constraints.
 
-The SNOW-Lite Flask application is no longer the primary workflow. The intended operating model is ServiceNow first: a user submits a catalog request, ServiceNow governs the change, local automation validates and executes only after the correct ServiceNow gates are satisfied, and all meaningful phase status is written back into ServiceNow.
+A legacy Flask prototype preceded this implementation but is not part of the supported workflow. The intended operating model is ServiceNow first: a user submits a catalog request, ServiceNow governs the change, local automation validates and executes only after the correct ServiceNow gates are satisfied, and all meaningful phase status is written back into ServiceNow.
 
 ## 1. Executive Summary
 
@@ -179,7 +179,7 @@ The CHG is created only after readiness is ready. It carries the `[CHECKPOINT_AU
 Key CTASKs:
 
 - `Implementation - Check Point firewall automation workflow`: primary driver task. Phase notes are mirrored here. Closed by automation after final validation.
-- `Tester validation gate - Check Point automation`: human tester gate after first member/failover. Closing Complete or Skipped authorizes member 2.
+- `Tester validation gate - Check Point automation`: human tester gate after first member/failover. Only closing the gate as Closed Complete authorizes member 2; Skipped, Incomplete, and Canceled do not.
 - `Engineer remediation required - Check Point automation at <phase>`: created on execution failure. Closing Complete with approved resume status allows automatic resume.
 - `Final validation - Check Point post-implementation checks`: created and closed by automation after final postcheck succeeds.
 
@@ -537,8 +537,8 @@ The activity plan supports both MDS management IP and SSH access/NAT IP.
 
 Example:
 
-- SSH access IP: `10.33.120.48`
-- MDS management IP: `20.0.0.4`
+- SSH access IP: `198.51.100.48`
+- MDS management IP: `203.0.113.4`
 
 Health checks can use access IP, while CDT candidate selection uses management IP.
 

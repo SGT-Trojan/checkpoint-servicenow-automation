@@ -50,6 +50,13 @@ def main() -> int:
             return 0
         failures = 0
         for step in steps:
+            if not (step.get("checksum_sha1") or step.get("checksum_sha256")):
+                print(
+                    f"ERROR: step {step.get('name')} requires a published SHA1 or SHA256 checksum",
+                    file=sys.stderr,
+                )
+                failures += 1
+                continue
             path = step.get('source_path') or step.get('package_name')
             if not path:
                 print(f"ERROR: step {step.get('name')} has no source_path", file=sys.stderr)

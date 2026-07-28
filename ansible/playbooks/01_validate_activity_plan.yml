@@ -46,6 +46,7 @@
               (activity_plan.checkpoint.current_version | default('') == 'R81.20' and activity_plan.checkpoint.target_version | default('') == 'R81.20')
               and ((item.package_name | default('')) is search('R82') or (item.source_path | default('')) is search('R82'))
             )
+          - (item.checksum_sha1 | default('') | length == 40) or (item.checksum_sha256 | default('') | length == 64)
         fail_msg: >-
           Package {{ item.package_name | default(item.name) }} does not match the declared
           current/target Check Point version {{ activity_plan.checkpoint.current_version }} ->

@@ -19,8 +19,8 @@
           - python3
           - "{{ scripts_dir }}/monitor_gateways.py"
           - --members
-          - "{{ member_a_ip | default('192.0.2.20') }}"
-          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - "{{ member_a_ip | mandatory }}"
+          - "{{ member_b_ip | mandatory }}"
           - --username
           - admin
           - --icap-mode

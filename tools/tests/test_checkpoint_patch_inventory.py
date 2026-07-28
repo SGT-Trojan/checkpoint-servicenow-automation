@@ -18,7 +18,7 @@ class InventoryTests(unittest.TestCase):
     def test_management_server_excludes_log_server(self):
         domain = {
             "servers": [
-                {"name": "CLM", "type": "log server", "ipv4-address": "10.0.0.9", "active": True},
+                {"name": "CLM", "type": "log server", "ipv4-address": "198.51.100.9", "active": True},
                 {"name": "CMA", "type": "management server", "ipv4-address": "10.0.0.8", "active": True},
             ]
         }

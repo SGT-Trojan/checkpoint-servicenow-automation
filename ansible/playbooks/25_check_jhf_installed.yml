@@ -33,8 +33,8 @@
           - "{{ scripts_dir | default(playbook_dir ~ '/../scripts') }}/cluster_phase_control.py"
           - assert-member-take
           - --members
-          - "{{ member_a_ip | default('192.0.2.20') }}"
-          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - "{{ member_a_ip | mandatory }}"
+          - "{{ member_b_ip | mandatory }}"
           - --username
           - admin
           - --state-file
@@ -49,8 +49,8 @@
         CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
         CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"
       loop:
-        - "{{ member_a_ip | default('192.0.2.20') }}"
-        - "{{ member_b_ip | default('192.0.2.21') }}"
+        - "{{ member_a_ip | mandatory }}"
+        - "{{ member_b_ip | mandatory }}"
       register: jhf_evidence
       changed_when: false
 

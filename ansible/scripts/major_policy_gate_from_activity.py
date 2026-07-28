@@ -85,18 +85,38 @@ def set_cluster_version(session, domain: str, cluster: str, version: str) -> Non
         wait_task(session, domain, task_id, timeout=900)
 
 
+def task_status_values(value) -> list[str]:
+    statuses: list[str] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key.lower() in {"status", "task-status", "task_status"} and isinstance(item, str):
+                statuses.append(item.strip().lower())
+            else:
+                statuses.extend(task_status_values(item))
+    elif isinstance(value, list):
+        for item in value:
+            statuses.extend(task_status_values(item))
+    return statuses
+
+
 def summarize_task(label: str, data: dict, expected_partial: bool) -> None:
-    print(f'===== {label} task summary =====')
+    print(f"===== {label} task summary =====")
     print(json.dumps(data, indent=2, sort_keys=True))
     if not data:
-        raise RuntimeError(f'{label}: policy task returned no result')
+        raise RuntimeError(f"{label}: policy task returned no result")
     blob = json.dumps(data).lower()
+    statuses = task_status_values(data)
+    if not statuses:
+        raise RuntimeError(f"{label}: policy task returned no status values")
     if expected_partial:
-        if 'failed' not in blob and 'warning' not in blob and 'succeeded with warnings' not in blob:
-            print('WARN: mixed-version policy install did not show expected partial/warning markers')
-    else:
-        if 'failed' in blob or 'succeeded with warnings' in blob:
-            raise RuntimeError(f'{label}: final policy install had failure/warning markers')
+        has_success = any("succeed" in status or status == "completed" for status in statuses)
+        has_failure = any("fail" in status or "error" in status for status in statuses)
+        if has_failure and not has_success:
+            raise RuntimeError(f"{label}: mixed-version policy install had no successful result")
+        if not has_failure and "warning" not in blob:
+            print("WARN: mixed-version policy install did not show expected partial/warning markers")
+    elif any("fail" in status or "error" in status or "warning" in status for status in statuses):
+        raise RuntimeError(f"{label}: final policy install had failure/warning markers")
 
 
 def main() -> int:
@@ -113,10 +133,10 @@ def main() -> int:
     domain = cp.get('domain') or ''
     cma_ip = cp.get('cma_ip') or ''
     cluster = cp.get('cluster_name')
-    package = cp.get('policy_package') or 'CP-FW-Policy'
-    current_version = cp.get('current_version') or 'R81.20'
-    target_version = cp.get('target_version') or 'R82'
-    for name, value in {'mds_host': mds_host, 'cma_name': cma_name, 'domain': domain, 'cluster_name': cluster, 'policy_package': package}.items():
+    package = cp.get('policy_package') or ''
+    current_version = cp.get('current_version') or ''
+    target_version = cp.get('target_version') or ''
+    for name, value in {'mds_host': mds_host, 'cma_name': cma_name, 'domain': domain, 'cluster_name': cluster, 'policy_package': package, 'current_version': current_version, 'target_version': target_version}.items():
         if not value:
             raise SystemExit(f'ERROR: activity plan missing {name}')
     password = os.environ.get('CP_PASSWORD', '')

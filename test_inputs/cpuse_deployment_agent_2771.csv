@@ -1,2 +1,2 @@
 sequence_number,action,package_name,package_type,sha1,sha256,reboot_expected,notes
-1,install,DeploymentAgent_000002771_1.tgz,deployment_agent,,,false,Governed Deployment Agent install/idempotence test
+1,install,DeploymentAgent_000002771_1.tgz,deployment_agent,d664f49a78c33b9227611e9e6a9501d0312ca35e,933f2bf4c28e196742fa1abb72805bda85cad0f1c5364529327614a6e3383bc6,false,Governed Deployment Agent install/idempotence test

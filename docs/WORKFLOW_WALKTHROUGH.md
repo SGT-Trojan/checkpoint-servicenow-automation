@@ -44,7 +44,7 @@ This sanitized walkthrough describes the implemented control flow. All names, ad
 
 ## Phase 5 — Execution (implementation worker, picks up within 60s of Implement)
 
-13. `snow-checkpoint-worker` finds the CHG (marker + Implement + approved), re-validates the full governance gate (marker, state, approval, closed readiness SCTASK on the parent RITM, open Implementation CTASK), and launches the runner. It will never double-launch (singleton lock + per-CHG state machine) and never auto-retries a failure.
+13. `snow-checkpoint-worker` finds the CHG (marker + Implement + approved), re-validates the full governance gate (marker, state, approval, Closed Complete readiness SCTASK with status `ready` on the parent RITM, open Implementation CTASK), and launches the runner. It will never double-launch (singleton lock + per-CHG state machine) and never auto-retries a failure.
 14. Runner phase sequence (each phase posts a note to the CHG; the mirror BR copies it to the Implementation CTASK; logs attach to the CTASK):
     discovery → validate plan → precheck → DA readiness → cluster-state capture → baseline support capture → MDS package/checksum + air-gap gate → member 1: prerequisites → controlled CDT candidates (only the target member enabled) → guarded CDT execute → reboot/readiness monitor → failover to member 1 → tester gate pause.
 

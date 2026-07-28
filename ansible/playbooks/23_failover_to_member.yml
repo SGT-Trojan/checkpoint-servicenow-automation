@@ -28,7 +28,7 @@
       ansible.builtin.assert:
         that:
           - derived_failover_target | default('') | length > 0
-          - derived_failover_target in [member_a_ip | default('192.0.2.20'), member_b_ip | default('192.0.2.21')]
+          - derived_failover_target in [member_a_ip | mandatory, member_b_ip | mandatory]
         fail_msg: >-
           Could not derive a valid failover target. Capture cluster state first or pass failover_target explicitly.
 
@@ -39,8 +39,8 @@
           - "{{ scripts_dir }}/cluster_phase_control.py"
           - failover-to
           - --members
-          - "{{ member_a_ip | default('192.0.2.20') }}"
-          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - "{{ member_a_ip | mandatory }}"
+          - "{{ member_b_ip | mandatory }}"
           - --username
           - admin
           - --state-file

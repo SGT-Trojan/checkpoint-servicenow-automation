@@ -180,6 +180,13 @@ def main() -> int:
         if cma_name:
             run('mdsenv ' + shlex.quote(cma_name), timeout=120)
         for step in steps:
+            if not (step.get("checksum_sha1") or step.get("checksum_sha256")):
+                print(
+                    f"ERROR: step {step.get('name')} requires a published SHA1 or SHA256 checksum",
+                    file=sys.stderr,
+                )
+                failures += 1
+                continue
             mds_path = resolve_mds_package_path(plan, step)
             gateway_path = resolve_gateway_package_path(plan, step)
             if not mds_path or not gateway_path:

@@ -81,8 +81,6 @@ def package_aliases(package: dict, step_name: str) -> list[str]:
         package.get('name'),
         step_name,
     ]
-    values.extend(listify(package.get('requires_present')))
-    values.extend(listify(package.get('requires_absent')))
     aliases: list[str] = []
     for value in values:
         if value is None:

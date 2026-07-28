@@ -102,8 +102,6 @@ def final_package_expectations(plan: dict) -> tuple[list[str], list[str]]:
         if action in {'remove', 'uninstall'}:
             if ref:
                 absent.append(ref)
-            # Removal UIs often put the package being removed in Requires Present.
-            absent.extend(listify(step.get('requires_present')))
         elif action in {'install', 'upgrade'} and not major:
             # Gaia may report JHF installs as a normalized display name such as
             # "R82 Jumbo Hotfix Accumulator Recommended Jumbo Take 91" rather

@@ -49,6 +49,8 @@ FINAL_VALIDATION_SHORT_DESCRIPTION = "Final validation - Check Point post-implem
 RESUME_APPROVED_VALUES = {"approved", "ready", "resume_approved"}
 RESUME_REJECTED_VALUES = {"rejected", "not_viable", "blocked"}
 COMPLETE_STATES = {"3", "7", "closed complete", "closed_complete", "closed skipped", "closed_skipped"}
+TESTER_APPROVED_STATES = {"3", "closed complete", "closed_complete"}
+PRE_PHASE_FAILURES = {"", "unknown", "initialization", "discover-targets"}
 INCOMPLETE_STATES = {"4", "closed incomplete", "closed_incomplete", "canceled", "cancelled"}
 
 
@@ -93,13 +95,15 @@ def redact_cmd(cmd: list[str]) -> list[str]:
     return redacted
 
 
-def latest_resume_state(chg_number: str) -> dict[str, Any]:
+def latest_resume_state(chg_number: str, *, newer_than: float = 0.0) -> dict[str, Any]:
     candidates = sorted(
         ROOT.glob(f"runs/{chg_number}_*/resume_state.json"),
         key=lambda path: path.stat().st_mtime,
         reverse=True,
     )
     for path in candidates:
+        if path.stat().st_mtime < newer_than:
+            continue
         try:
             data = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError):
@@ -264,8 +268,10 @@ def create_engineer_remediation_task(
         return existing
 
     chg_number = chg.get("number") or chg["sys_id"]
-    resume = latest_resume_state(str(chg_number))
-    failed_phase = str(resume.get("failed_phase") or entry.get("failed_phase") or "unknown")
+    resume = latest_resume_state(
+        str(chg_number), newer_than=float(entry.get("last_started_epoch") or 0.0)
+    )
+    failed_phase = str(resume.get("failed_phase") or entry.get("failed_phase") or "initialization")
     failed_playbook = str(resume.get("failed_playbook") or entry.get("failed_playbook") or "unknown")
     failed_step = str(resume.get("failed_step") or entry.get("failed_step") or "")
     failed_log = str(resume.get("failed_log") or entry.get("last_log") or "")
@@ -366,11 +372,17 @@ def closed_tester_task_exists(sn: ServiceNowClient, chg_sys_id: str) -> bool:
         # (all of which contain "testing"/"validation" and end up Closed Complete).
         if not short.startswith("tester validation gate"):
             continue
-        # Tester approval means a deliberate Closed Complete/Skipped. Closed Incomplete
-        # must not count.
-        if display_value(task.get("state")).lower() in COMPLETE_STATES:
+        # Only Closed Complete is an affirmative tester authorization. Skipped,
+        # canceled, and incomplete tasks keep the workflow blocked.
+        if display_value(task.get("state")).lower() in TESTER_APPROVED_STATES:
             return True
     return False
+
+
+def remediation_start_at(entry: dict[str, Any], task: dict[str, Any]) -> str:
+    requested = str(task.get("u_checkpoint_resume_phase") or "").strip()
+    failed = requested or str(entry.get("failed_phase") or "").strip()
+    return "" if failed.lower() in PRE_PHASE_FAILURES else failed
 
 
 def implementation_task_is_open(task: dict[str, Any] | None) -> bool:
@@ -409,6 +421,7 @@ def run_runner(args: argparse.Namespace, chg: dict[str, Any], *, start_at: str, 
             "status": "running",
             "mode": run_kind,
             "last_started_at": utc_now(),
+            "last_started_epoch": time.time(),
             "last_log": str(log_path),
             "command": safe_cmd,
         }
@@ -446,7 +459,7 @@ def process_once(args: argparse.Namespace, sn: ServiceNowClient, state: dict[str
 
         entry = state.setdefault("changes", {}).setdefault(chg["sys_id"], {"number": chg.get("number")})
         status = entry.get("status")
-        if status in {"completed", "running", "remediation_rejected"}:
+        if status in {"completed", "running", "remediation_rejected", "stopped_by_operator"}:
             continue
 
         start_at = ""
@@ -478,13 +491,12 @@ def process_once(args: argparse.Namespace, sn: ServiceNowClient, state: dict[str
                 save_state(Path(args.state_file), state)
                 post_note(sn, chg, f"Check Point automation worker: remediation CTASK {task.get('number')} closed without resume approval; automation remains blocked.")
                 return True
-            start_at = str(entry.get("failed_phase") or task.get("u_checkpoint_resume_phase") or "").strip()
-            if not start_at:
-                start_at = "postcheck"
+            start_at = remediation_start_at(entry, task)
+            resume_label = start_at or "the beginning"
             if args.dry_run:
-                print(f"DRY RUN: would resume {chg.get('number')} from failed phase {start_at} after engineer remediation approval")
+                print(f"DRY RUN: would resume {chg.get('number')} from {resume_label} after engineer remediation approval")
                 return True
-            post_note(sn, chg, f"Check Point automation worker: engineer remediation CTASK {task.get('number')} approved; resuming from {start_at} phase.")
+            post_note(sn, chg, f"Check Point automation worker: engineer remediation CTASK {task.get('number')} approved; resuming from {resume_label}.")
         else:
             if args.dry_run:
                 print(f"DRY RUN: would start governed firewall automation for {chg.get('number')} ({chg['sys_id']})")
@@ -514,8 +526,16 @@ def process_once(args: argparse.Namespace, sn: ServiceNowClient, state: dict[str
         elif rc == 20:
             entry["status"] = "waiting_tester"
             post_note(sn, chg, "Check Point automation worker: runner stopped at tester gate; close the tester CTASK to resume.")
+        elif rc == 21:
+            entry["status"] = "stopped_by_operator"
+            post_note(sn, chg, "Check Point automation worker: runner stopped at an explicit phase boundary; success bookkeeping was not performed.")
         else:
-            resume = latest_resume_state(str(chg.get("number") or chg["sys_id"]))
+            for key in ("failed_phase", "failed_playbook", "failed_step", "failed_log", "failed_run_dir"):
+                entry.pop(key, None)
+            resume = latest_resume_state(
+                str(chg.get("number") or chg["sys_id"]),
+                newer_than=float(entry.get("last_started_epoch") or 0.0),
+            )
             entry.update({k: v for k, v in {
                 "failed_phase": resume.get("failed_phase"),
                 "failed_playbook": resume.get("failed_playbook"),
