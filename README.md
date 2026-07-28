@@ -6,7 +6,7 @@
 
 [![Validate](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml/badge.svg)](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml)
 
-[Apache-2.0](LICENSE) | [Python 3.10+](requirements.txt) | [Ansible Core 2.16-2.21](requirements.txt)
+[<kbd>Apache-2.0</kbd>](LICENSE) [<kbd>Python 3.10+</kbd>](requirements.txt) [<kbd>Ansible Core 2.16-2.21</kbd>](requirements.txt)
 
 Run it directly from an automation host or place ServiceNow in front of it.
 Both paths use the same prechecks, member order, pause points, and run state.
