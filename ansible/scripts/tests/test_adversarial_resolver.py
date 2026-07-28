@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Kimi adversarial review fixtures for codex/resolver-hardening f453b14.
+"""Adversarial regression fixtures for managed-target resolution.
 
-test_member_without_name_must_fail_closed is a REPRODUCTION test for blocking
-finding K1: it encodes the required fail-closed behavior and FAILS against the
-reviewed commit until the implementer removes the fabricated member name.
-The remaining tests are gap-fill coverage and pass against the reviewed commit.
+Covers missing member identities, IPv6 targets, preferred-domain ambiguity,
+unknown domains, and stable command-line exit codes.
 """
 from __future__ import annotations
 

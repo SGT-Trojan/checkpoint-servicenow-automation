@@ -16,7 +16,7 @@ compatibility guidance or certify another environment.
   command line. Some runner certifications used a governance override and a
   simulated tester gate; those are identified below.
 - **Independently reviewed** means retained evidence and implementation claims
-  were checked by a second coding agent without accessing the live systems.
+  were checked by an independent second reviewer without accessing the live systems.
 - **Take 0** means no separately installed Jumbo Hotfix remained after Take 76
   was removed; it does not mean an unpatched Gaia image contains no fixes.
 
