@@ -40,6 +40,7 @@
       .edge-violet { stroke: #7c3aed; marker-end: url(#arrow-violet); }
       .edge-dashed { stroke-dasharray: 8 7; }
       .edge-soft { stroke: #8a98aa; stroke-width: 2; stroke-dasharray: 5 7; }
+      .edge-input { marker-end: none; }
       .edge-label-bg { fill: #f8fafc; opacity: 0.96; }
       .edge-label { font-size: 13px; font-weight: 700; fill: #526278; text-anchor: middle; }
       .edge-label-violet { fill: #6b21a8; }
@@ -121,10 +122,12 @@
   <path class="edge edge-soft" d="M1226 464 H1268"/>
 
   <!-- Entry convergence -->
-  <path class="edge edge-blue" d="M566 258 V286 Q566 300 552 300 H176 Q160 300 160 316 V404"/>
-  <rect class="edge-label-bg" x="328" y="288" width="116" height="23" rx="6"/><text class="edge-label" x="386" y="304">direct</text>
-  <path class="edge edge-blue" d="M982 258 V278 Q982 296 964 296 H260 Q244 296 244 312 V404"/>
+  <path class="edge edge-blue edge-input" d="M566 258 V300"/>
+  <rect class="edge-label-bg" x="578" y="266" width="76" height="23" rx="6"/><text class="edge-label" x="616" y="282">direct</text>
+  <path class="edge edge-blue edge-input" d="M982 258 V278 Q982 296 964 296 H566"/>
   <rect class="edge-label-bg" x="718" y="283" width="144" height="23" rx="6"/><text class="edge-label" x="790" y="299">approved change</text>
+  <circle cx="566" cy="300" r="4.5" fill="#2563eb"/>
+  <path class="edge edge-blue" d="M566 300 V394 H210 V404"/>
 
   <!-- Check Point estate -->
   <g aria-label="MDS and CMA">
@@ -168,9 +171,9 @@
   <path class="edge" d="M1236 822 H1276"/>
 
   <!-- Cross-plane control paths -->
-  <path class="edge" d="M784 516 V610 Q784 628 766 628 H160 Q160 628 160 760"/>
+  <path class="edge" d="M784 516 V610 Q784 628 766 628 H450 V748 H160 V760"/>
   <rect class="edge-label-bg" x="454" y="615" width="152" height="24" rx="6"/><text class="edge-label" x="530" y="632">read-only discovery</text>
-  <path class="edge" d="M1098 516 V592 Q1098 610 1080 610 H278 Q260 610 260 760"/>
+  <path class="edge" d="M1098 516 V592 Q1098 610 1080 610 H470 V756 H260 V760"/>
   <rect class="edge-label-bg" x="824" y="597" width="112" height="24" rx="6"/><text class="edge-label" x="880" y="614">CDT or API</text>
   <path class="edge edge-dashed" d="M1098 516 V576 Q1098 592 1082 592 H532 Q515 592 515 610 V760"/>
   <rect class="edge-label-bg" x="650" y="579" width="202" height="24" rx="6"/><text class="edge-label" x="751" y="596">guarded direct fallback</text>
