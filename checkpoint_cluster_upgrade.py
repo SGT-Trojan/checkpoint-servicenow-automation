@@ -711,6 +711,15 @@ def choose_active(gateways: list[Gateway]) -> Gateway:
     return active[0]
 
 
+def gateway_ready(gw: Gateway, icap_mode: str) -> bool:
+    return (
+        gw.pnotes_ok
+        and gw.interfaces_ok
+        and gw.local_state != "UNKNOWN"
+        and (icap_mode != "required" or gw.icap_ok is True)
+    )
+
+
 def run_precheck(args: argparse.Namespace) -> list[Gateway]:
     gateways: list[Gateway] = []
     for host in args.members:
@@ -720,16 +729,7 @@ def run_precheck(args: argparse.Namespace) -> list[Gateway]:
             for result in results:
                 print_section(host, result)
     report_gateways(gateways)
-    bad = [
-        gw.host
-        for gw in gateways
-        if (
-            not gw.pnotes_ok
-            or not gw.interfaces_ok
-            or gw.local_state == "UNKNOWN"
-            or (args.icap_mode == "required" and gw.icap_ok is False)
-        )
-    ]
+    bad = [gw.host for gw in gateways if not gateway_ready(gw, args.icap_mode)]
     if bad:
         raise CheckPointError(f"Precheck failed on: {', '.join(bad)}")
     return gateways

@@ -144,5 +144,67 @@ class DeploymentBackendTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
 
 
+class GovernanceReadinessTests(unittest.TestCase):
+    def context(self, readiness: list[dict]) -> dict:
+        return {
+            "chg": {
+                "description": runner.AUTOMATION_MARKER,
+                "state": "-1",
+                "approval": "approved",
+            },
+            "ritm_id": "ritm",
+            "readiness_tasks": readiness,
+            "implementation_task": {"sys_id": "impl"},
+        }
+
+    def test_failed_or_skipped_readiness_does_not_authorize_execution(self) -> None:
+        for state, status in (("4", "failed"), ("7", "ready"), ("3", "failed")):
+            with self.subTest(state=state, status=status):
+                with self.assertRaisesRegex(SystemExit, "Closed Complete"):
+                    runner.validate_service_now_governance(
+                        self.context([{
+                            "number": "SCTASK_TEST",
+                            "state": state,
+                            "u_checkpoint_readiness_status": status,
+                        }])
+                    )
+
+    def test_manual_ready_task_can_follow_historical_failed_task(self) -> None:
+        runner.validate_service_now_governance(
+            self.context([
+                {"number": "SCTASK_AUTO", "state": "4", "u_checkpoint_readiness_status": "failed"},
+                {"number": "SCTASK_MANUAL", "state": "3", "u_checkpoint_readiness_status": "ready"},
+            ])
+        )
+
+
+class PhaseBoundaryTests(unittest.TestCase):
+    STEPS = [
+        ("first-member", "one.yml", "", {}),
+        ("postcheck", "two.yml", "", {}),
+    ]
+
+    def test_unknown_start_and_stop_phases_fail_closed(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "--start-at"):
+            runner.validate_phase_boundaries(
+                self.STEPS, start_at="unknown", stop_after="", skip_discovery=False
+            )
+        with self.assertRaisesRegex(SystemExit, "--stop-after"):
+            runner.validate_phase_boundaries(
+                self.STEPS, start_at="", stop_after="unknown", skip_discovery=False
+            )
+
+    def test_valid_phase_boundaries_are_accepted(self) -> None:
+        runner.validate_phase_boundaries(
+            self.STEPS, start_at="postcheck", stop_after="postcheck", skip_discovery=False
+        )
+
+    def test_discovery_stop_requires_discovery(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "skip-discovery"):
+            runner.validate_phase_boundaries(
+                self.STEPS, start_at="", stop_after="discover-targets", skip_discovery=True
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

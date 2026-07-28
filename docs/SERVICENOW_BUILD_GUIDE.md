@@ -530,14 +530,14 @@ Outcomes (all field-driven):
 
 Poll target: `change_request` in state Implement, `approval=approved`, description containing `[CHECKPOINT_AUTOMATION]`.
 
-Governance gate re-validated on every poll (defense in depth — the BR already guaranteed most of this once, but records can be edited): marker present; state Implement; approved; parent RITM has a closed readiness SCTASK; an open Implementation CTASK exists. Any miss = skip with a work note, not a crash.
+Governance gate re-validated on every poll (defense in depth — the BR already guaranteed most of this once, but records can be edited): marker present; state Implement; approved; parent RITM has a Closed Complete readiness SCTASK with status `ready`; an open Implementation CTASK exists. Any miss = skip with a work note, not a crash.
 
 Per-CHG state machine (persisted in `runs/worker_state.json`, singleton `flock` on `worker_state.lock`; never double-launches, never auto-retries):
 
 | State | Meaning | Exit condition |
 |---|---|---|
 | `running` | Runner subprocess live (mode `start` or `resume --start-at <phase>`) | Runner exit code |
-| `waiting_tester` | Runner exited rc 20 at the tester gate | `Tester validation gate - Check Point automation` CTASK (prefix-matched) closed Complete/Skipped → resume from `second-member`. Suppressed/relabeled/born-closed tasks can NOT satisfy this gate — only COMPLETE_STATES on the exact prefix count. |
+| `waiting_tester` | Runner exited rc 20 at the tester gate | `Tester validation gate - Check Point automation` CTASK (prefix-matched) closed Complete → resume from `second-member`. Suppressed/relabeled/born-closed tasks can NOT satisfy this gate — only Closed Complete on the exact prefix counts. |
 | `waiting_engineer` | Runner failed; remediation CTASK open | See remediation loop below |
 | `completed` | rc 0 + bookkeeping done | terminal |
 
@@ -550,10 +550,10 @@ Success bookkeeping (wrapped in try/except so a bookkeeping hiccup cannot mark a
 Launched by the worker as `--chg-sys-id <sys_id>` (sys_id, not number — numbers can duplicate). Can be run manually with the same args for lab work.
 
 1. Independent governance gate — re-checks marker/state/approval/readiness/CTASK itself. The worker being convinced is not enough.
-2. Activity plan build: RITM variables + parsed package CSV + MDS discovery → one JSON contract (Appendix C) passed to every playbook as `--extra-vars @<run>/CHG_vars.json`. Key mappings: `ACTIVITY_MAP` normalizes catalog values (`version_upgrade_activity`→"Major Version Upgrade", `software_patch_activity`→patch, `deployment_agent_install`→"Deployment Agent Update"); execution method = `Direct CPUSE/Clish` for DA activity, else CDT; target take inferred from package filenames; package types inferred (`deployment_agent` when the name carries deployment+agent; `.tar`→`.tgz` aliasing recorded).
-3. Workflow selection (`workflow_steps()`): three branches — DA short path / major upgrade with policy+MVC phases / generic rolling patch. Standalone major → hard `ValueError`. The Visio flowcharts are the reference diagrams for all three.
+2. Activity plan build: RITM variables + parsed package CSV + MDS discovery → one JSON contract (Appendix B) passed to every playbook as `--extra-vars @<run>/CHG_vars.json`. Key mappings: `ACTIVITY_MAP` normalizes catalog values (`version_upgrade_activity`→"Major Version Upgrade", `software_patch_activity`→patch, `deployment_agent_install`→"Deployment Agent Update"); execution method = `Direct CPUSE/Clish` for DA activity, else CDT; target take inferred from package filenames; package types inferred (`deployment_agent` when the name carries deployment+agent; `.tar`→`.tgz` aliasing recorded).
+3. Workflow selection (`workflow_steps()`): three branches — DA short path / major upgrade with policy+MVC phases / generic rolling patch. Standalone major → hard `ValueError`. The phase matrix in Section 11 is the reference for all three.
 4. Execution loop: each phase = one `ansible-playbook` invocation, logged to `runs/<CHG>_<ts>/logs/<phase>_<step>_<playbook>.log`, one work note posted to the CHG (mirror BR copies it), log uploaded to the Implementation CTASK.
-5. Exit codes: `0` success · `20` stopped at tester gate · anything else = failure with `resume_state.json` written. Flags: `--start-at <phase>` (resume), `--stop-after`, `--dry-run`, `--simulate-gates` (auto-approve tester gate, lab only), `--tester-gate false` (suppress the gate when the catalog said no).
+5. Exit codes: `0` success · `20` stopped at tester gate · `21` explicit `--stop-after` boundary · anything else = failure with `resume_state.json` written. Flags: `--start-at <phase>` (resume), `--stop-after`, `--dry-run`, `--simulate-gates` (auto-approve tester gate, lab only), `--tester-gate false` (suppress the gate when the catalog said no).
 
 ## 11. Playbook catalog and helper scripts in depth
 
@@ -699,7 +699,7 @@ A production implementation must remove the current assumption that one Expert s
 | rc 0 | playbook/runner | phase/run succeeded | Continue; on final success perform bookkeeping. |
 | rc 2 | most validation/execution helpers | failed phase | Create/dedupe Engineer Remediation CTASK and preserve resume state. |
 | rc 3 | guarded direct/CDT helper without execute approval | planned but not executed | Stop; correct invocation/governance, do not mark success. |
-| rc 20 | runner at tester gate | intentional pause | Wait for exact Tester validation gate CTASK Closed Complete/Skipped. |
+| rc 20 | runner at tester gate | intentional pause | Wait for the exact Tester validation gate CTASK to reach Closed Complete. |
 | rc 130 | interrupted runner | interrupted failure | Investigate process/host interruption; resume only after engineer approval. |
 | readiness exception/rc nonzero | readiness worker | pre-CHG failure | Close automated SCTASK Incomplete; create manual Firewall Deploy SCTASK; no CHG. |
 | ServiceNow bookkeeping exception after rc 0 | implementation worker | firewall work succeeded, bookkeeping incomplete | Persist completed state, post warning, finish record updates manually without rerunning firewall phases. |
@@ -806,7 +806,7 @@ Run through in order; each line was a real failure mode during the original buil
 | Runner refuses: "not in Implement" | Change model moved the CHG | See auto-advance row above |
 | CDT "candidate list error" | Controlled file drifted / wrong CMA IP | Regenerate 10; verify `-server=<CMA-IP>` not MDS IP |
 | Postcheck fails though install worked | Package name alias gap | Extend `token_variants`; `.tar`/`.tgz`/extensionless/Take forms |
-| Tester close doesn't resume | Task closed Incomplete, or prefix mismatch | Must be exact prefix + Complete/Skipped |
+| Tester close doesn't resume | Task closed Incomplete, or prefix mismatch | Must be exact prefix + Closed Complete |
 | Fixed worker code, behavior unchanged | Workers load at start | `sudo systemctl restart ...` (runner/helpers need no restart) |
 | BR edits via REST don't stick | Field-level ACL or silent normalization | GET-and-diff after PATCH; use background script fallback with `sysparm_ck` for stubborn fields |
 
@@ -918,16 +918,16 @@ The sanitized scenarios in this guide illustrate expected behavior; they are not
 
 ## Appendix A — Business rule script bodies (as deployed)
 
-Update the constants marked `<-- REPLACE` (item sys_ids, group/assignee sys_ids) for your instance.
+Replace every environment-specific item, group, and assignee sys_id before activation. In A.1, use the current consolidated catalog item sys_id and remove unused legacy item constants.
 
 ### A.1 Intake: create readiness task (`sc_req_item`, after insert+update)
 
 ```javascript
 (function executeRule(current, previous) {
     try {
-        var PATCH_ITEM = '<RETIRED_PATCH_ITEM_SYS_ID>';
-        var UPGRADE_ITEM = '<RETIRED_UPGRADE_ITEM_SYS_ID>';
-        var LEGACY_ITEM = '<RETIRED_LEGACY_ITEM_SYS_ID>';
+        var PATCH_ITEM = '<CATALOG_ITEM_SYS_ID_1>';
+        var UPGRADE_ITEM = '<CATALOG_ITEM_SYS_ID_2>';
+        var LEGACY_ITEM = '<CATALOG_ITEM_SYS_ID_3>';
         var cat = current.cat_item ? current.cat_item.toString() : '';
         if (cat != PATCH_ITEM && cat != UPGRADE_ITEM && cat != LEGACY_ITEM)
             return;

@@ -94,7 +94,7 @@ class ResolverTests(unittest.TestCase):
     def test_cma_selection_excludes_clm_and_uses_active_management_server(self):
         row = {
             "servers": [
-                {"name": "CLM", "type": "log server", "ipv4-address": "10.0.0.9", "active": True},
+                {"name": "CLM", "type": "log server", "ipv4-address": "198.51.100.9", "active": True},
                 {"name": "CMA-B", "type": "management server", "ipv4-address": "10.0.0.8", "active": False},
                 {"name": "CMA-A", "type": "management server", "ipv4-address": "10.0.0.7", "active": True},
             ]

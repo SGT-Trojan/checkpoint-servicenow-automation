@@ -53,19 +53,26 @@ def target_members_for_phase(plan: dict, phase: str, reports_dir: Path) -> list[
     if (checkpoint.get('cluster_mode') or 'cluster') == 'standalone' or len(members) == 1:
         return [members[0]]
 
-    chg_number = (plan.get('change') or {}).get('number', 'unknown')
-    state = load_cluster_state(reports_dir, chg_number)
-    by_ip = {m['ip']: m for m in members}
-
-    if phase == 'first-member':
-        target_ip = state.get('original_standby_host') or members[1]['ip']
-        return [by_ip.get(target_ip, {'hostname': target_ip, 'ip': target_ip})]
-    if phase == 'second-member':
-        target_ip = state.get('original_active_host') or checkpoint.get('original_active_member') or members[0]['ip']
-        return [by_ip.get(target_ip, {'hostname': target_ip, 'ip': target_ip})]
-    if phase in {'install-deployment-agent', 'deployment-agent-readiness'}:
+    if phase in {"install-deployment-agent", "deployment-agent-readiness"}:
         return members
-    raise SystemExit(f"ERROR: unsupported package prerequisite phase {phase!r}")
+    if phase not in {"first-member", "second-member"}:
+        raise SystemExit(f"ERROR: unsupported package prerequisite phase {phase!r}")
+
+    chg_number = (plan.get("change") or {}).get("number", "unknown")
+    state = load_cluster_state(reports_dir, chg_number)
+    by_ip = {m["ip"]: m for m in members}
+    original_active = state.get("original_active_host")
+    original_standby = state.get("original_standby_host")
+    if not original_active or not original_standby:
+        raise SystemExit(
+            f"ERROR: captured cluster state for {chg_number} must identify original active and standby members"
+        )
+    if original_active == original_standby or {original_active, original_standby} != set(by_ip):
+        raise SystemExit(
+            f"ERROR: captured cluster state for {chg_number} does not match the activity-plan members"
+        )
+    target_ip = original_standby if phase == "first-member" else original_active
+    return [by_ip[target_ip]]
 
 
 def normalize(text: str) -> str:

@@ -50,5 +50,47 @@ class DirectRemoveIdentityTests(unittest.TestCase):
             )
 
 
+class DirectMemberSelectionTests(unittest.TestCase):
+    def plan(self) -> dict:
+        return {
+            "change": {"number": "CHG_TEST"},
+            "checkpoint": {
+                "cluster_mode": "cluster",
+                "members": [
+                    {"hostname": "member-a", "ip": "192.0.2.20"},
+                    {"hostname": "member-b", "ip": "192.0.2.21"},
+                ],
+            },
+        }
+
+    def test_cluster_phase_requires_captured_state(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(SystemExit, "must identify original active and standby"):
+                direct.member_ips_for_phase(self.plan(), "first-member", Path(tmp))
+
+    def test_captured_state_must_match_plan_members(self) -> None:
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            reports = Path(tmp)
+            (reports / "cluster_initial_state_CHG_TEST.json").write_text(
+                json.dumps({"original_active_host": "192.0.2.99", "original_standby_host": "192.0.2.21"})
+            )
+            with self.assertRaisesRegex(SystemExit, "does not match"):
+                direct.member_ips_for_phase(self.plan(), "second-member", reports)
+
+    def test_phase_targets_follow_captured_state(self) -> None:
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            reports = Path(tmp)
+            (reports / "cluster_initial_state_CHG_TEST.json").write_text(
+                json.dumps({"original_active_host": "192.0.2.20", "original_standby_host": "192.0.2.21"})
+            )
+            self.assertEqual(direct.member_ips_for_phase(self.plan(), "first-member", reports), ["192.0.2.21"])
+            self.assertEqual(direct.member_ips_for_phase(self.plan(), "second-member", reports), ["192.0.2.20"])
+
+
 if __name__ == "__main__":
     unittest.main()

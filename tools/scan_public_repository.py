@@ -13,6 +13,8 @@ PATTERNS = (
     (re.compile(r"otp" r"auth://", re.I), "TOTP URI"),
     (re.compile(r"-----BEGIN " r"(?:RSA |EC |OPENSSH )?PRIVATE KEY-----"), "private key"),
     (re.compile(r"(?i)\b(?:auth" r"Token|clientSessionId|fwmSessionId)\s*[:=]\s*[\"']?(?!<REDACTED>|null|none)[A-Za-z0-9+/=_-]{8,}"), "session token"),
+    (re.compile(r"(?i)\b[0-9a-f]{32}\b"), "ServiceNow sys_id"),
+    (re.compile(r"(?<![A-Z])(?:REQ|RITM|SCTASK|CTASK|CHG)\d{7,}(?!\d)"), "ServiceNow record number"),
 )
 
 SKIP_DIRS = {".git", ".venv", "venv", "__pycache__"}

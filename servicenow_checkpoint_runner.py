@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ServiceNow-first Check Point firewall maintenance runner.
 
-This runner intentionally does not import or call the SNOW-Lite Flask app.  It uses
+This runner is independent of the legacy Flask prototype. It uses
 ServiceNow as the system of record, generates the same activity-plan contract the
 Ansible/CDT playbooks expect, runs the playbooks in guarded phases, and writes
 phase status back to ServiceNow CTASK/CHG records.
@@ -49,6 +49,8 @@ AUTOMATION_MARKER = "[CHECKPOINT_AUTOMATION]"
 IMPLEMENT_STATE_VALUES = {"-1", "implement", "Implement"}
 APPROVED_VALUES = {"approved", "Approved"}
 READINESS_CLOSED_STATES = {"3", "4", "7", "closed complete", "closed_complete", "closed skipped", "closed_skipped", "closed incomplete", "closed_incomplete", "canceled", "cancelled"}
+CONTROLLED_STOP_RC = 21
+CLOSED_COMPLETE_STATES = {"3", "closed complete", "closed_complete"}
 IMPLEMENTATION_TASK_PREFIX = "Implementation - Check Point firewall automation workflow"
 ATTACHMENT_VARIABLE_NAMES = {"cpuse_package_upload", "cpuse_dependency_upload"}
 CHANGE_FIELDS = "sys_id,number,parent,short_description,description,work_notes,state,approval,cmdb_ci,implementation_plan,backout_plan,test_plan"
@@ -257,7 +259,8 @@ def readiness_tasks(sn: ServiceNowClient, ritm_id: str) -> list[dict[str, Any]]:
     tasks = sn.results(
         "sc_task",
         f"request_item={ritm_id}",
-        "sys_id,number,short_description,state,assignment_group,assigned_to",
+        "sys_id,number,short_description,state,assignment_group,assigned_to,"
+        "u_checkpoint_readiness_status,u_checkpoint_readiness_source",
         100,
     )
     out = []
@@ -309,12 +312,18 @@ def validate_service_now_governance(context: dict[str, Any], *, allow_lab_overri
         errors.append("no Firewall Deploy readiness SCTASK was found for the parent RITM")
     else:
         open_tasks = []
+        ready_tasks = []
         for task in readiness:
             task_state = display_value(task.get("state")).lower()
+            readiness_status = str(task.get("u_checkpoint_readiness_status") or "").strip().lower()
             if task_state not in READINESS_CLOSED_STATES:
                 open_tasks.append(f"{task.get('number')} state={display_value(task.get('state'))!r}")
+            elif task_state in CLOSED_COMPLETE_STATES and readiness_status == "ready":
+                ready_tasks.append(task)
         if open_tasks:
             errors.append("readiness SCTASK is not closed: " + "; ".join(open_tasks))
+        if not ready_tasks:
+            errors.append("no readiness SCTASK is Closed Complete with u_checkpoint_readiness_status=ready")
 
     if not context.get("implementation_task"):
         errors.append(f"BR-created implementation CTASK was not found using prefix {IMPLEMENTATION_TASK_PREFIX!r}")
@@ -439,6 +448,22 @@ def normalize_action(value: str) -> str:
     return "install"
 
 
+def validated_package_hashes(
+    action: str, package_name: str, sha1: str, sha256: str
+) -> tuple[str, str]:
+    sha1 = sha1.strip().lower()
+    sha256 = sha256.strip().lower()
+    if sha1 and not re.fullmatch(r"[0-9a-f]{40}", sha1):
+        raise ValueError(f"package {package_name!r} has an invalid SHA1 value")
+    if sha256 and not re.fullmatch(r"[0-9a-f]{64}", sha256):
+        raise ValueError(f"package {package_name!r} has an invalid SHA256 value")
+    if action in {"install", "upgrade"} and not (sha1 or sha256):
+        raise ValueError(
+            f"package {package_name!r} requires a published SHA1 or SHA256 checksum for {action}"
+        )
+    return sha1, sha256
+
+
 def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str = "/var/log/tmp") -> list[dict[str, Any]]:
     steps = []
     for i, row in enumerate(rows, 1):
@@ -456,6 +481,12 @@ def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str 
         name_base = re.sub(r"\.(tar|tgz|gz)$", "", Path(package_name).name, flags=re.I)
         step_name = lower.get("step_name") or f"{action}_{slug(name_base)}"
         source_path = lower.get("source_path") or lower.get("path") or f"{package_source_dir.rstrip('/')}/{package_name}"
+        checksum_sha1, checksum_sha256 = validated_package_hashes(
+            action,
+            package_name,
+            lower.get("sha1") or lower.get("checksum_sha1") or "",
+            lower.get("sha256") or lower.get("checksum_sha256") or "",
+        )
         steps.append({
             "order": order,
             "name": slug(step_name),
@@ -464,8 +495,8 @@ def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str 
             "package_type": package_type,
             "source_path": source_path,
             "dest_path": lower.get("dest_path") or package_source_dir,
-            "checksum_sha1": lower.get("sha1") or lower.get("checksum_sha1") or "",
-            "checksum_sha256": lower.get("sha256") or lower.get("checksum_sha256") or "",
+            "checksum_sha1": checksum_sha1,
+            "checksum_sha256": checksum_sha256,
             "requires_present": [],
             "requires_absent": [],
             "reboot_expected": (lower.get("reboot_expected", "true").lower() not in {"false", "no", "0", "n"}),
@@ -537,12 +568,16 @@ def choose_attachment(context: dict[str, Any], kind: str) -> Path | None:
         name = (att.get("file_name") or "").lower()
         if all(t in name for t in terms) and name.endswith((".csv", ".xlsx")):
             return Path(att["local_path"])
-    # fallback: first CSV/XLSX for package, second for dependency
-    files = [Path(a["local_path"]) for a in context.get("attachments", []) if (a.get("file_name") or "").lower().endswith((".csv", ".xlsx"))]
-    if kind == "package" and files:
-        return files[0]
-    if kind == "dependency" and len(files) > 1:
-        return files[1]
+    candidates = [
+        str(a.get("file_name") or "")
+        for a in context.get("attachments", [])
+        if (a.get("file_name") or "").lower().endswith((".csv", ".xlsx"))
+    ]
+    if candidates:
+        raise ValueError(
+            f"cannot identify {kind} attachment by filename; rename it to include "
+            f"{'CPUSE Package' if kind == 'package' else 'Dependency'}: {', '.join(candidates)}"
+        )
     return None
 
 
@@ -908,6 +943,22 @@ def workflow_steps(plan: dict[str, Any]) -> list[tuple[str, str, str, dict[str, 
     return steps
 
 
+def validate_phase_boundaries(
+    steps: list[tuple[str, str, str, dict[str, Any]]],
+    *,
+    start_at: str,
+    stop_after: str,
+    skip_discovery: bool,
+) -> None:
+    phases = {phase for phase, _playbook, _step, _extra in steps}
+    if start_at and start_at not in phases:
+        raise SystemExit(f"ERROR: --start-at phase {start_at!r} is not present in this workflow")
+    if stop_after == "discover-targets" and skip_discovery:
+        raise SystemExit("ERROR: --stop-after discover-targets cannot be used with --skip-discovery")
+    if stop_after and stop_after != "discover-targets" and stop_after not in phases:
+        raise SystemExit(f"ERROR: --stop-after phase {stop_after!r} is not present in this workflow")
+
+
 def main() -> int:
     os.umask(0o077)
     ap = argparse.ArgumentParser()
@@ -997,7 +1048,7 @@ def main() -> int:
             summary = {"status": "stopped", "stopped_after": "discover-targets", "chg_number": args.chg_number, "run_dir": str(run_dir), "finished_at": utc_now()}
             (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
             print(json.dumps(summary, indent=2))
-            return 0
+            return CONTROLLED_STOP_RC
 
     plan = build_base_plan(args, steps, discovered, values)
     plan_path = run_dir / f"{args.chg_number}_activity_plan.json"
@@ -1005,12 +1056,18 @@ def main() -> int:
     vars_path = run_dir / f"{args.chg_number}_vars.json"
 
     all_steps = workflow_steps(plan)
+    validate_phase_boundaries(
+        all_steps, start_at=args.start_at, stop_after=args.stop_after, skip_discovery=args.skip_discovery
+    )
     active = not bool(args.start_at)
+    executed_phases = 0
+    stopped_after = ""
     for phase, playbook, step, extra in all_steps:
         if args.start_at and phase == args.start_at:
             active = True
         if not active:
             continue
+        executed_phases += 1
         if playbook == "__gate__":
             if args.simulate_gates:
                 post_phase(sn, context, phase, "simulated", "Tester gate auto-approved for lab simulation.")
@@ -1040,14 +1097,26 @@ def main() -> int:
             return rc
         post_phase(sn, context, phase, "completed", f"{playbook} completed successfully.", log_path)
         if args.stop_after and phase == args.stop_after:
+            stopped_after = phase
             print(f"Stopped after requested phase {phase}")
             break
 
-    summary = {"status": "completed", "chg_number": args.chg_number, "run_dir": str(run_dir), "activity_plan": str(plan_path), "finished_at": utc_now()}
+    if executed_phases == 0:
+        raise SystemExit("ERROR: workflow selected zero executable phases; refusing to report success")
+    summary = {
+        "status": "stopped" if stopped_after else "completed",
+        "chg_number": args.chg_number,
+        "run_dir": str(run_dir),
+        "activity_plan": str(plan_path),
+        "finished_at": utc_now(),
+    }
+    if stopped_after:
+        summary["stopped_after"] = stopped_after
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    post_phase(sn, context, "postcheck", "completed", f"ServiceNow-first workflow completed. Evidence reference: {run_dir.name}", run_dir / "summary.json")
+    if not stopped_after:
+        post_phase(sn, context, "postcheck", "completed", f"ServiceNow-first workflow completed. Evidence reference: {run_dir.name}", run_dir / "summary.json")
     print(json.dumps(summary, indent=2))
-    return 0
+    return CONTROLLED_STOP_RC if stopped_after else 0
 
 
 if __name__ == "__main__":

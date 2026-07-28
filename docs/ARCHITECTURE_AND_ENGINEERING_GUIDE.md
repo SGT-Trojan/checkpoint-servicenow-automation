@@ -4,7 +4,7 @@ Audience: automation engineers responsible for operating, extending, or producti
 
 This document describes the full architecture: ServiceNow request governance, the local workers, the runner, Ansible playbooks, helper scripts, Check Point MDS and gateway interactions, evidence, logs, gates, remediation, and known operational constraints.
 
-The SNOW-Lite Flask application is no longer the primary workflow. The intended operating model is ServiceNow first: a user submits a catalog request, ServiceNow governs the change, local automation validates and executes only after the correct ServiceNow gates are satisfied, and all meaningful phase status is written back into ServiceNow.
+A legacy Flask prototype preceded this implementation but is not part of the supported workflow. The intended operating model is ServiceNow first: a user submits a catalog request, ServiceNow governs the change, local automation validates and executes only after the correct ServiceNow gates are satisfied, and all meaningful phase status is written back into ServiceNow.
 
 ## 1. Executive Summary
 
@@ -179,7 +179,7 @@ The CHG is created only after readiness is ready. It carries the `[CHECKPOINT_AU
 Key CTASKs:
 
 - `Implementation - Check Point firewall automation workflow`: primary driver task. Phase notes are mirrored here. Closed by automation after final validation.
-- `Tester validation gate - Check Point automation`: human tester gate after first member/failover. Closing Complete or Skipped authorizes member 2.
+- `Tester validation gate - Check Point automation`: human tester gate after first member/failover. Only closing the gate as Closed Complete authorizes member 2; Skipped, Incomplete, and Canceled do not.
 - `Engineer remediation required - Check Point automation at <phase>`: created on execution failure. Closing Complete with approved resume status allows automatic resume.
 - `Final validation - Check Point post-implementation checks`: created and closed by automation after final postcheck succeeds.
 
@@ -349,7 +349,7 @@ Major Version Upgrade also uses its own dedicated branch rather than the generic
 
 For each phase, the runner posts a concise CHG note. A ServiceNow mirror business rule copies the authoritative automation notes to the Implementation CTASK.
 
-At tester gate, the runner stops intentionally. The worker records `waiting_tester` and resumes from `second-member` only after the dedicated tester CTASK is closed Complete or Skipped.
+At tester gate, the runner stops intentionally. The worker records `waiting_tester` and resumes from `second-member` only after the dedicated tester CTASK is Closed Complete.
 
 On failure, the runner writes:
 
@@ -537,8 +537,8 @@ The activity plan supports both MDS management IP and SSH access/NAT IP.
 
 Example:
 
-- SSH access IP: `10.33.120.48`
-- MDS management IP: `20.0.0.4`
+- SSH access IP: `198.51.100.48`
+- MDS management IP: `203.0.113.4`
 
 Health checks can use access IP, while CDT candidate selection uses management IP.
 
@@ -712,7 +712,7 @@ Happens before CHG creation. Failed automated readiness creates manual Firewall 
 
 ### Implementation Remediation
 
-Happens after CHG reaches Implement and runner execution fails. The worker creates an Engineer Remediation CTASK, records failed phase/playbook/step/log, and waits. Resume requires approved resume status plus Closed Complete/Skipped state.
+Happens after CHG reaches Implement and runner execution fails. The worker creates an Engineer Remediation CTASK, records failed phase/playbook/step/log, and waits. For engineer remediation only, resume requires both an explicit approved resume status and a Closed Complete or Closed Skipped task state; unlike the tester gate, task closure alone never authorizes execution.
 
 Auto-retry is intentionally avoided because a failed firewall change may indicate real cluster, package, or management drift.
 
@@ -727,7 +727,7 @@ A successful run should show:
 - Phase notes posted.
 - First member package action complete.
 - Failover complete.
-- Tester validation CTASK Closed Complete or Skipped.
+- Tester validation CTASK Closed Complete.
 - Second member package action complete.
 - Original active restored when configured.
 - Final support capture complete.
@@ -840,7 +840,7 @@ CHG not starting:
 
 Paused at tester gate:
 
-- Close `Tester validation gate - Check Point automation` Complete or Skipped after validation.
+- Close `Tester validation gate - Check Point automation` as Closed Complete after validation.
 
 Engineer remediation created:
 

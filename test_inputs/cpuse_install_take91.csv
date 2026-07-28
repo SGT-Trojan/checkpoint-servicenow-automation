@@ -1,2 +1,2 @@
 sequence_number,action,package_name,sha1,sha256,reboot_expected
-1,install,Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar,,,true
+1,install,Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar,53c6bcf11729a009c1b87ef90c0548ae481412a1,f73030874fc6ef8ae8ea21a59f01223d49f3ad9f8b8cf0af35ea440fcc31f101,true

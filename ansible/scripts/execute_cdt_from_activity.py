@@ -41,6 +41,26 @@ def parse_candidates(text: str) -> list[dict[str, str]]:
     return rows
 
 
+def validate_candidate_identity(
+    rows: list[dict[str, str]], members: list[dict], cluster_name: str
+) -> None:
+    expected_ips = {str(member.get("management_ip") or member.get("ip") or "") for member in members}
+    expected_names = {
+        str(member.get("hostname") or member.get("object_name") or "") for member in members
+    }
+    expected_ips.discard("")
+    expected_names.discard("")
+    if len(expected_ips) != 2 or {row["ip_address"] for row in rows} != expected_ips:
+        raise ValueError("candidate IP identities do not match the two activity-plan members")
+    if expected_names and {row["object_name"] for row in rows} != expected_names:
+        raise ValueError("candidate object identities do not match the activity-plan members")
+    if not cluster_name or any(row["cluster_name"] != cluster_name for row in rows):
+        raise ValueError("candidate cluster identity does not match the activity plan")
+    enabled = [row for row in rows if row["upgrade_order"] == "1"]
+    if len(enabled) != 1 or enabled[0]["state"] != "standby":
+        raise ValueError("enabled CDT candidate must be the current standby member")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity-plan-file', required=True)
@@ -62,7 +82,8 @@ def main() -> int:
     mds_host = checkpoint.get('mds_host')
     cma_env = checkpoint.get('cma_name')
     cma_ip = checkpoint.get('cma_ip')
-    missing = [name for name, value in {'mds_host': mds_host, 'cma_name': cma_env, 'cma_ip': cma_ip}.items() if not value]
+    cluster_name = checkpoint.get('cluster_name')
+    missing = [name for name, value in {'mds_host': mds_host, 'cma_name': cma_env, 'cma_ip': cma_ip, 'cluster_name': cluster_name}.items() if not value]
     if missing:
         print(f'ERROR: activity plan missing required fields: {", ".join(missing)}', file=sys.stderr)
         return 2
@@ -104,6 +125,11 @@ def main() -> int:
             return 2
         if len(enabled) != 1 or len(disabled) != 1:
             print('ERROR: controlled candidate file must have exactly one enabled member and one disabled peer', file=sys.stderr)
+            return 2
+        try:
+            validate_candidate_identity(rows, members, cluster_name)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
             return 2
         print(f"Selected execution target: {enabled[0]['object_name']} {enabled[0]['ip_address']} ({enabled[0]['state']})")
 

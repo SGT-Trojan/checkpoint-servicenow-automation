@@ -26,8 +26,8 @@
           - "{{ scripts_dir }}/cluster_phase_control.py"
           - capture-state
           - --members
-          - "{{ member_a_ip | default('192.0.2.20') }}"
-          - "{{ member_b_ip | default('192.0.2.21') }}"
+          - "{{ member_a_ip | mandatory }}"
+          - "{{ member_b_ip | mandatory }}"
           - --username
           - admin
           - --state-file
