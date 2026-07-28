@@ -96,7 +96,7 @@
     <text class="node-copy" x="388" y="498">phase-controlled execution</text>
   </g>
   <g aria-label="Readiness and target resolution">
-    <rect class="card" x="648" y="412" width="272" height="104" rx="12"/>
+    <rect class="card" x="648" y="412" width="288" height="104" rx="12"/>
     <circle class="step" cx="674" cy="438" r="15"/><text class="step-text" x="674" y="438">04</text>
     <text class="node-kicker" x="698" y="442" fill="#64748b">FAIL-CLOSED GATE</text>
     <text class="node-title" x="674" y="476">Readiness + resolution</text>
@@ -117,7 +117,7 @@
   </g>
   <path class="edge" d="M328 464 H354"/>
   <path class="edge" d="M598 464 H640"/>
-  <path class="edge" d="M920 464 H962"/>
+  <path class="edge" d="M936 464 H962"/>
   <path class="edge edge-soft" d="M1226 464 H1268"/>
 
   <!-- Entry convergence -->
@@ -144,8 +144,8 @@
     <rect class="card card-human" x="688" y="768" width="250" height="108" rx="12"/>
     <circle cx="714" cy="798" r="15" fill="#7c3aed"/><text class="step-text" x="714" y="798">07</text>
     <text class="node-kicker" x="738" y="802" fill="#7c3aed">HUMAN CONTROL</text>
-    <text class="node-title" x="714" y="836">Validate + fail over</text>
-    <text class="node-copy-strong" x="714" y="858">tester or remediation gate</text>
+    <text class="node-title" x="714" y="836">Fail over to member 1</text>
+    <text class="node-copy-strong" x="714" y="858">then tester validation</text>
   </g>
   <g aria-label="Original active member changed second">
     <rect class="card card-estate" x="986" y="768" width="250" height="108" rx="12"/>
@@ -155,11 +155,11 @@
     <text class="node-copy-strong" x="1012" y="858">changed second</text>
   </g>
   <g aria-label="Final assurance">
-    <rect class="card card-estate" x="1284" y="768" width="224" height="108" rx="12"/>
+    <rect class="card card-estate" x="1284" y="768" width="266" height="108" rx="12"/>
     <circle cx="1310" cy="798" r="15" fill="#16845b"/><text class="step-text" x="1310" y="798">09</text>
     <text class="node-kicker" x="1334" y="802" fill="#16845b">ASSURANCE</text>
     <text class="node-title" x="1310" y="836">Final validation</text>
-    <text class="node-copy" x="1310" y="858">health / policy / owner</text>
+    <text class="node-copy" x="1310" y="858" style="font-size:13px">health / policy / ownership restore</text>
   </g>
   <path class="edge" d="M342 822 H382"/>
   <path class="edge edge-violet" d="M640 822 H680"/>
@@ -180,7 +180,7 @@
   <path class="edge edge-soft" d="M1276 482 H1248 Q1236 482 1236 470 V392 Q1236 380 1224 380 H480 Q468 380 468 404"/>
   <rect class="edge-label-bg" x="764" y="368" width="172" height="24" rx="6"/><text class="edge-label" x="850" y="385">resume exact phase</text>
   <path class="edge edge-blue edge-dashed" d="M1508 446 H1532 Q1544 446 1544 434 V146 Q1544 130 1528 130 H982 Q982 130 982 156"/>
-  <rect class="edge-label-bg" x="1190" y="118" width="224" height="24" rx="6"/><text class="edge-label" x="1302" y="135">phase notes / evidence / outcome</text>
+  <rect class="edge-label-bg" x="1190" y="118" width="224" height="24" rx="6"/><text class="edge-label" x="1302" y="135">notes / evidence / outcome</text>
 
   <!-- Legend -->
   <g transform="translate(70 938)">
