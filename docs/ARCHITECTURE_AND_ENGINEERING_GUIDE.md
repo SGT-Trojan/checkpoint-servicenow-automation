@@ -603,6 +603,9 @@ Operational observations from controlled testing:
 
 The lower-level runner also has a separately certified Management Web API backend selected with `--deployment-backend api`. This is not currently exposed by the ServiceNow catalog; CDT remains the governed default. The API backend and CDT backend have separate runner branches and playbooks.
 
+For the command-level distinction, raw `mgmt_cli` examples, Ansible module
+mapping, and script-API boundary, see `CDT_AND_MANAGEMENT_API.md`.
+
 API components:
 
 - `39_api_repository_package.yml`: imports a local MDS package into the Global Central Deployment repository.
