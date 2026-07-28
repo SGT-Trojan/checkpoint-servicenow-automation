@@ -596,8 +596,8 @@ The foundation library every helper imports (`import checkpoint_cluster_upgrade 
 ### 11.3 `discover_checkpoint_targets.py` — target resolution
 
 - Input: `--mds-host`, `--target-ips` (comma/newline list), `--preferred-domain`, optional `--output` JSON path. Env: `CP_PASSWORD`, `CP_EXPERT_PASSWORD` (hard exit if missing — every helper enforces this).
-- How it works: SSH to the MDS → `mgmt_cli -r true` (keyless, root-trust on the management) → enumerate domains (`show domains`), per domain enumerate gateways & clusters (`show gateways-and-servers`), extract every IPv4 from each object (`all_ipv4_values` walks the whole JSON — main IP, interfaces, cluster VIPs, member IPs), and match the requested targets. For a matched cluster it emits member records (name, ip, management/access distinction) and finds the policy package targeting it (`show packages` + installation-targets match).
-- Decisions: any requested IP not found in ANY domain object → `SystemExit` "target IPs ... were not found" (readiness fails, no CHG); MDS returning no domains → hard error. `safe_mgmt_cli` tolerates individual command failures (returns None) so one broken domain doesn't kill discovery — but zero results overall still fails.
+- How it works: SSH to the MDS → `mgmt_cli -r true` (keyless, root-trust on the management) → paginate all regular domains and each domain's `show gateways-and-servers` response. Address matching reads only structured address fields on gateway, cluster, member, and interface objects; comments and arbitrary text cannot match. A matched cluster is expanded by UID with `show simple-cluster`, and the policy package comes from the matched object's policy data.
+- Decisions: every query, response shape, and pagination total is required to be complete. Transport, authentication, API, malformed-response, repeated-page, or incomplete-page errors fail the whole scan. All requested IPs must belong to one object after every domain has been scanned; not-found and cross-object/cross-domain ambiguity are distinct failures. A preferred domain only filters among domains actually discovered and cannot inject a missing domain.
 - Output: `discovered` JSON (domain, cluster name/mode, members with roles, policy package) consumed by the runner's activity-plan build; optionally written into a SQLite db (`--db-path/--change-id`) for the readiness evidence trail.
 
 ### 11.4 `validate_mds_packages.py` — package presence + integrity
@@ -616,10 +616,10 @@ The foundation library every helper imports (`import checkpoint_cluster_upgrade 
 
 ### 11.6 `validate_package_prerequisites.py` — per-step CPUSE gate
 
-- For the step under execution, per target member: pulls CPUSE inventory (`show installer packages` variants) and `/opt/CPInstLog` history, then evaluates `requires_present` / `requires_absent` lists from the plan.
-- Alias normalization (the part that makes it reliable): `.tar`↔`.tgz` equivalence, extensionless CPUSE display names, `Take-91`/`T91`/`#91` variants, JHF/wrapper keyword scoring (`package_candidates_from_history`). CPUSE displays `.tgz` names even when the MDS source was `.tar` — naive string compare fails; this is why every present/absent decision goes through `token_variants`.
+- For the step under execution, selects the intended member from the captured cluster state, pulls CPUSE inventory with `show installer packages`, and evaluates the plan's `requires_present` / `requires_absent` lists. First-member and second-member phases fail closed when the captured original ACTIVE/STANDBY identities are missing or differ from the plan.
+- Alias normalization covers `.tar`↔`.tgz`, basename and path forms, underscore/hyphen spacing, and common `Take 91`/`JHF_T91`/`T91` variants. CPUSE may display a `.tgz` identity when the approved source used `.tar`, so every present/absent comparison goes through `token_variants`.
 - Major upgrades additionally run `show snapshots`: parses snapshot names, verifies restore-point capacity, and prints stale Blink/upgrade snapshot cleanup candidates (informational unless capacity is actually blocking).
-- Decisions: required-present missing → rc 2 naming the token and member; required-absent found (e.g. installing a JHF that's already on) → rc 2; resolver ambiguity is logged (`Other resolver candidates: ...`) with the top-scored candidate chosen.
+- Decisions: required-present missing or required-absent found returns rc 2 with the exact token and member. Major-upgrade restore-point capacity that cannot be parsed or is below the configured floor also returns rc 2. Removal requires an explicit package name or supported Take/JHF alias; prerequisite keys are not treated as a general uninstall list.
 
 ### 11.7 `generate_cdt_candidates_from_activity.py` — controlled candidate file
 

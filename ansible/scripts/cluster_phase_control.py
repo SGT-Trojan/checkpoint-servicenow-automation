@@ -320,7 +320,7 @@ def main() -> int:
     parser.add_argument("--dest-candidates", default="")
     parser.add_argument("--phase", choices=["phase1", "phase2"], default="phase1")
     parser.add_argument("--target-host", default="")
-    parser.add_argument("--target-take", default="91")
+    parser.add_argument("--target-take", default="")
     parser.add_argument("--failover-wait-seconds", type=int, default=600)
     args = parser.parse_args()
 
@@ -339,6 +339,8 @@ def main() -> int:
     if args.action == "assert-member-take":
         if not args.target_host:
             parser.error("--target-host is required")
+        if not str(args.target_take).strip():
+            parser.error("--target-take is required")
         return assert_member_take(args)
     raise ValueError(args.action)
 
