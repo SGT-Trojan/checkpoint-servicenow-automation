@@ -10,9 +10,6 @@
   <img src="docs/diagrams/project-metadata-badges.svg" width="396" alt="Apache-2.0 license; Python 3.10 or later; Ansible Core 2.16 through 2.21">
 </a>
 
-Run it directly from an automation host or place ServiceNow in front of it.
-Both paths use the same prechecks, member order, pause points, and run state.
-
 [Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [CDT and Management API](docs/CDT_AND_MANAGEMENT_API.md) | [Component reference](docs/COMPONENT_REFERENCE.md) | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) | [Security](SECURITY.md)
 
 </div>
@@ -37,6 +34,10 @@ Both paths use the same prechecks, member order, pause points, and run state.
 > member at a time, and stop for tester or remediation tasks when prompted.
 
 ## What This Repository Provides
+
+Run the workflow directly from an automation host, or use ServiceNow as its
+governance layer. Both paths use the same prechecks, member order, pause points,
+and resume state.
 
 | Area | Included behavior |
 |---|---|
