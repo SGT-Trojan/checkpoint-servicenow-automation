@@ -6,7 +6,9 @@
 
 [![Validate](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml/badge.svg)](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml)
 
-[<kbd>Apache-2.0</kbd>](LICENSE) [<kbd>Python 3.10+</kbd>](requirements.txt) [<kbd>Ansible Core 2.16-2.21</kbd>](requirements.txt)
+<a href="#requirements-and-compatibility">
+  <img src="docs/diagrams/project-metadata-badges.svg" width="396" alt="Apache-2.0 license; Python 3.10 or later; Ansible Core 2.16 through 2.21">
+</a>
 
 Run it directly from an automation host or place ServiceNow in front of it.
 Both paths use the same prechecks, member order, pause points, and run state.
@@ -18,6 +20,7 @@ Both paths use the same prechecks, member order, pause points, and run state.
 ## Contents
 
 - [What This Repository Provides](#what-this-repository-provides)
+- [Requirements and Compatibility](#requirements-and-compatibility)
 - [Live Validation Snapshot](#live-validation-snapshot)
 - [Quick Start](#quick-start)
 - [Documentation](#documentation)
@@ -45,6 +48,15 @@ Both paths use the same prechecks, member order, pause points, and run state.
 | Governance | ServiceNow REQ/RITM/SCTASK/CHG/CTASK lifecycle with readiness, tester, remediation, and final-validation tasks |
 | Recovery | Durable phase state, delayed tester gates, engineer remediation, and resume from the failed phase |
 | Package tooling | Current and archived Recommended JHF discovery, interactive selection, resumable download, and SHA1/SHA256 verification |
+
+## Requirements and Compatibility
+
+| Item | Supported value |
+|---|---|
+| License | [Apache License 2.0](LICENSE) |
+| Python | 3.10 or later |
+| Ansible Core | 2.16 through 2.21 (`>=2.16,<2.22`) |
+| Check Point releases and Takes | See the [certification matrix](docs/CERTIFIED_SCENARIOS.md) |
 
 ## Live Validation Snapshot
 
