@@ -37,11 +37,11 @@ REQ (request)
 
 ### 1.3 Design principles (why the build looks like this)
 
-1. A CHG only exists for validated, actionable work. Readiness is proven (automated, or by a Firewall Deploy engineer) *before* change governance starts.
-2. Decisions are field-driven, never text-driven. `u_checkpoint_readiness_*` and `u_checkpoint_resume_*` fields carry every machine decision; work notes are for humans. Close-note markers exist for audit only.
-3. Defense in depth. The worker validates governance before launching; the runner independently re-validates before touching anything.
-4. Every failure produces exactly one actionable human task, deduplicated, with evidence paths and explicit instructions.
-5. The gateways are air-gapped. Only the automation host talks to ServiceNow (outbound HTTPS). Packages are manually staged to the MDS; gateways receive them MDS-side (CPRID / CDT).
+1. **A CHG only exists for validated, actionable work.** Readiness is proven (automated, or by a Firewall Deploy engineer) *before* change governance starts.
+2. **Decisions are field-driven, never text-driven.** `u_checkpoint_readiness_*` and `u_checkpoint_resume_*` fields carry every machine decision; work notes are for humans. Close-note markers exist for audit only.
+3. **Defense in depth.** The worker validates governance before launching; the runner independently re-validates before touching anything.
+4. **Every failure produces exactly one actionable human task.** Failures are deduplicated and include evidence paths and explicit instructions.
+5. **The gateways are air-gapped.** Only the automation host talks to ServiceNow (outbound HTTPS). Packages are manually staged to the MDS; gateways receive them MDS-side (CPRID / CDT).
 
 ### 1.4 Activity types and their execution paths
 
@@ -120,9 +120,9 @@ Writes go the same way: `PATCH` on task/CHG records (states, `u_checkpoint_*` fi
 
 Why this is the right shape for this system:
 
-1. All connections are outbound from the automation host. ServiceNow never needs to reach into the network, so nothing needs to be exposed or brokered — which is exactly the problem a MID server exists to solve.
-2. The pollers are also the state machines. The implementation worker is not a dumb executor; it re-validates governance on every poll, tracks per-CHG state (`runs/worker_state.json`), and refuses to double-launch (singleton `flock` + per-CHG status). Moving execution triggering into ServiceNow (Flow Designer → MID → Ansible) would split that state machine across two systems.
-3. Failure semantics stay simple: if the host is down, requests simply queue in ServiceNow; nothing is lost.
+1. **All connections are outbound from the automation host.** ServiceNow never needs to reach into the network, so nothing needs to be exposed or brokered — which is exactly the problem a MID server exists to solve.
+2. **The pollers are also the state machines.** The implementation worker is not a dumb executor; it re-validates governance on every poll, tracks per-CHG state (`runs/worker_state.json`), and refuses to double-launch (singleton `flock` + per-CHG status). Moving execution triggering into ServiceNow (Flow Designer → MID → Ansible) would split that state machine across two systems.
+3. **Failure semantics stay simple.** If the host is down, requests simply queue in ServiceNow; nothing is lost.
 
 ### 3.2 ServiceNow components to activate for this pattern
 
