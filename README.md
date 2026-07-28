@@ -4,7 +4,9 @@
 
 **A reference implementation for governed Check Point firewall maintenance with Ansible.**
 
-[![Validate](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml/badge.svg)](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml) [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-2f855a.svg)](LICENSE) [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab.svg)](requirements.txt) [![Ansible Core](https://img.shields.io/badge/ansible--core-2.16--2.21-ee0000.svg)](requirements.txt)
+[![Validate](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml/badge.svg)](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml)
+
+[Apache-2.0](LICENSE) | [Python 3.10+](requirements.txt) | [Ansible Core 2.16-2.21](requirements.txt)
 
 Run it directly from an automation host or place ServiceNow in front of it.
 Both paths use the same prechecks, member order, pause points, and run state.
