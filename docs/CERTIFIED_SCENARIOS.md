@@ -17,8 +17,10 @@ compatibility guidance or certify another environment.
   simulated tester gate; those are identified below.
 - **Independently reviewed** means retained evidence and implementation claims
   were checked by an independent second reviewer without accessing the live systems.
-- **Take 0** means no separately installed Jumbo Hotfix remained after Take 76
-  was removed; it does not mean an unpatched Gaia image contains no fixes.
+- **No separately installed JHF** means the previously installed Take 76
+  package had been removed. This describes installed package state; it does not
+  identify a product Take numbered 0 or imply that the base Gaia image contains
+  no fixes.
 
 ## Certified Environment Anchors
 
@@ -38,9 +40,9 @@ chains on 2026-07-26. No governance override or simulated tester gate was used.
 
 | Activity | Starting state | Ending state | Live controls exercised | Result |
 |---|---|---|---|---|
-| JHF install | R81.20 build 634, Take 0 | R81.20 build 634, Take 76 on both members | Automated readiness, approvals, guarded one-member CDT execution, real reboots, tester gate, final validation, closure | Passed; independently reviewed |
-| JHF uninstall | R81.20 build 634, Take 76 | R81.20 build 634, Take 0 on both members | `Take 76` alias resolution through CPRID/CPInstLog, guarded rolling removal, real reboots, tester gate, final validation, closure | Passed; independently reviewed |
-| Major upgrade | R81.20 build 634, Take 0 | R82 build 777, embedded Take 60 on both members | Mixed-version policy gate, MVC on/off, rolling upgrade, controlled failover, real tester gate, SSH-host-key remediation tasks, phase-specific resume, final policy and closure | Passed; independently reviewed |
+| JHF install | R81.20 build 634, no separately installed JHF | R81.20 build 634, Take 76 on both members | Automated readiness, approvals, guarded one-member CDT execution, real reboots, tester gate, final validation, closure | Passed; independently reviewed |
+| JHF uninstall | R81.20 build 634, Take 76 | R81.20 build 634, no separately installed JHF on both members | `Take 76` alias resolution through CPRID/CPInstLog, guarded rolling removal, real reboots, tester gate, final validation, closure | Passed; independently reviewed |
+| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, embedded Take 60 on both members | Mixed-version policy gate, MVC on/off, rolling upgrade, controlled failover, real tester gate, SSH-host-key remediation tasks, phase-specific resume, final policy and closure | Passed; independently reviewed |
 
 The governed major-upgrade evidence proved version, Take, policy, ClusterXL,
 PNOTEs, interfaces, remediation/resume, and closure. Its generated final
@@ -57,9 +59,9 @@ governance override and simulated tester gates.
 
 | Activity | Starting state | Ending state | Result |
 |---|---|---|---|
-| Take 76 install | R81.20 build 634, Take 0 | R81.20 Take 76 on both members | Passed; real rolling CDT execution and reboots; independently reviewed |
-| Take 76 uninstall | R81.20 Take 76 | R81.20 Take 0 on both members | Passed; authoritative CPInstLog identity resolution and rolling CDT removal; independently reviewed |
-| Major upgrade | R81.20 build 634, Take 0 | R82 build 777, Take 60 | Passed; MVC, policy, failover, support diff, ownership restoration, ICAP and postcheck; independently reviewed |
+| Take 76 install | R81.20 build 634, no separately installed JHF | R81.20 Take 76 on both members | Passed; real rolling CDT execution and reboots; independently reviewed |
+| Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF on both members | Passed; authoritative CPInstLog identity resolution and rolling CDT removal; independently reviewed |
+| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | Passed; MVC, policy, failover, support diff, ownership restoration, ICAP and postcheck; independently reviewed |
 
 A later runner-level CDT cycle on 2026-07-27 discovered R82 Take 107 as the
 current Recommended Take, downloaded and verified the 2.49 GB package, staged it
@@ -79,9 +81,9 @@ These runs used a lab governance override and simulated tester gate.
 
 | Activity | Starting state | Ending state | Execution path | Result |
 |---|---|---|---|---|
-| Take 76 install | R81.20 build 634, Take 0 | R81.20 Take 76 | API repository import, verification, and cluster execution | Passed; independently reviewed |
-| Take 76 uninstall | R81.20 Take 76 | R81.20 Take 0 | API inventory and CPRID/CPInstLog identity resolution, then guarded direct CPUSE member removal | Passed; independently reviewed; explicitly not an API-only uninstall claim |
-| Major upgrade | R81.20 build 634, Take 0 | R82 build 777, Take 60 | API package execution plus mixed-version policy, MVC, explicit failover, final policy, restoration, and postcheck gates | Passed; independently reviewed |
+| Take 76 install | R81.20 build 634, no separately installed JHF | R81.20 Take 76 | API repository import, verification, and cluster execution | Passed; independently reviewed |
+| Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF | API inventory and CPRID/CPInstLog identity resolution, then guarded direct CPUSE member removal | Passed; independently reviewed; explicitly not an API-only uninstall claim |
+| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | API package execution plus mixed-version policy, MVC, explicit failover, final policy, restoration, and postcheck gates | Passed; independently reviewed |
 
 The tested API rejected the per-member semantics required for safe rolling
 cluster uninstall. The direct CPUSE fallback is deliberate, visible in the
@@ -110,7 +112,7 @@ not evidence of an upgrade from every older Agent build.
 The following must not be inferred from the successful rows:
 
 - R81.20 Take 76 directly to R82 Take 60. The certified major upgrade began
-  after Take 76 removal, from R81.20 Take 0.
+  after Take 76 removal, from R81.20 build 634 with no separately installed JHF.
 - R82 to R82.10, R82.10 to a later release, or any release not listed above.
 - Standalone gateways. The major and API workflows certified here require a
   two-member cluster and reject unsupported shapes.
