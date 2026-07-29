@@ -9,7 +9,7 @@ Describe the behavior changed and why.
 - [ ] `python3 tools/scan_public_repository.py .` passes.
 - [ ] No credentials, private topology, customer data, package binaries, or live evidence are included.
 - [ ] Disruptive or live-system behavior is documented and guarded.
-- [ ] Public text contains no non-public attribution, branch namespaces, or coordination-protocol fields.
+- [ ] No local workspace paths, private tooling references, or internal planning notes are included.
 
 ## Operational impact
 
