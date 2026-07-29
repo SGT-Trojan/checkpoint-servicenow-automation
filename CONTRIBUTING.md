@@ -7,8 +7,9 @@
 4. Document behavioral and security changes.
 5. Use adversarial review for targeting, governance, resume, credential, and
    failover logic.
-6. Keep public filenames, branch references, commit messages, and review text
-   neutral. Do not include non-public attribution or coordination-protocol fields.
+6. Keep filenames, branch names, commit messages, and pull-request descriptions
+   relevant to the change. Remove local workspace paths, private tooling
+   references, and internal planning notes.
 
 Live-system tests require explicit authorization and must not run in public CI.
 Submit sanitized summaries rather than raw operational evidence.
