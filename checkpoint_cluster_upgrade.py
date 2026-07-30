@@ -16,6 +16,7 @@ import os
 import pty
 import re
 import select
+import shlex
 import signal
 import socket
 import sys
@@ -574,14 +575,72 @@ def package_lookup_terms(package: str) -> list[str]:
 
 
 def package_table_has_ready_package(output: str, package: str) -> bool:
-    ready_statuses = ["downloaded", "installed", "available for install"]
     terms = package_lookup_terms(package)
+    negative_statuses = (
+        "not downloaded",
+        "not installed",
+        "unavailable",
+        "not available",
+        "failed",
+    )
+    ready_statuses = ("downloaded", "installed", "available for install")
     for line in output.splitlines():
         lower = line.lower()
-        if any(term in lower for term in terms) and any(status in lower for status in ready_statuses):
+        if not any(term in lower for term in terms):
+            continue
+        if any(status in lower for status in negative_statuses):
+            continue
+        if any(status in lower for status in ready_statuses):
             return True
     return False
 
+
+def package_table_has_installed_target(
+    output: str, package: str, target_take: str
+) -> bool:
+    package_stem = re.sub(
+        r"\.(?:tgz|tar)$", "", Path(package).name.lower(), flags=re.IGNORECASE
+    )
+    take_pattern = re.compile(
+        rf"(?:\btake[ _-]?{re.escape(target_take)}\b|_t{re.escape(target_take)}(?:_|\b))",
+        re.IGNORECASE,
+    )
+    for line in output.splitlines():
+        lower = line.lower()
+        if any(
+            marker in lower for marker in ("not installed", "uninstalled", "failed")
+        ):
+            continue
+        if not re.search(r"\binstalled\b", lower):
+            continue
+        if package_stem not in lower:
+            continue
+        if take_pattern.search(line):
+            return True
+    return False
+
+
+def version_output_matches_target(output: str, target_version: str) -> bool:
+    return bool(
+        re.search(
+            rf"(?<![A-Za-z0-9.]){re.escape(target_version)}(?![A-Za-z0-9.])",
+            output,
+            re.IGNORECASE,
+        )
+    )
+
+
+def installer_return_code(output: str) -> int | None:
+    matches = re.findall(r"(?:^|\s)__RC=(\d+)(?:\s|$)", output)
+    return int(matches[-1]) if matches else None
+
+
+def expert_installer_command(package: str) -> str:
+    clish_command = f"installer install {shlex.quote(package)}"
+    return (
+        f"clish -c {shlex.quote(clish_command)}; "
+        "rc=$?; printf '\\n__RC=%s\\n' \"$rc\""
+    )
 
 def acquire_clish_lock(session: SshPty, host: str) -> None:
     res = session.run("lock database override", timeout=60)
@@ -603,23 +662,24 @@ def download_and_verify(args: argparse.Namespace, host: str) -> None:
             log(f"{host}: {args.package} is already downloaded/installable; skipping download")
         else:
             log(f"{host}: downloading {args.package}")
-            res = session.run(f"installer download {args.package}", timeout=args.download_timeout)
+            res = session.run(
+                f"installer download {shlex.quote(args.package)}",
+                timeout=args.download_timeout,
+            )
             print_section(host, res)
-            download_ok_markers = [
-                "downloaded successfully",
-                "already downloaded",
-                "available for install",
-                "downloaded",
-            ]
-            if not any(marker in res.output.lower() for marker in download_ok_markers):
-                log(f"{host}: download command returned unexpected output; checking package table")
-                packages = session.run("show installer packages", timeout=120)
-                print_section(host, packages)
-                if not package_table_has_ready_package(packages.output, args.package):
-                    raise CheckPointError(f"{host}: package download did not reach an installable/downloaded state")
+            log(f"{host}: confirming download state in the package table")
+            packages = session.run("show installer packages", timeout=120)
+            print_section(host, packages)
+            if not package_table_has_ready_package(packages.output, args.package):
+                raise CheckPointError(
+                    f"{host}: package download did not reach an installable/downloaded state"
+                )
 
         log(f"{host}: verifying {args.package}")
-        verify = session.run(f"installer verify {args.package}", timeout=args.verify_timeout)
+        verify = session.run(
+            f"installer verify {shlex.quote(args.package)}",
+            timeout=args.verify_timeout,
+        )
         print_section(host, verify)
         verify_lower = verify.output.lower()
         failure_markers = [
@@ -647,13 +707,54 @@ def download_and_verify(args: argparse.Namespace, host: str) -> None:
         session.close()
 
 
-def install_package(args: argparse.Namespace, host: str) -> None:
+def install_package(args: argparse.Namespace, host: str) -> bool:
     require_execute(args, "install CPUSE package")
+    if not args.expert_password:
+        raise CheckPointError("Expert password is required to capture installer status")
     session = connect(args, host)
     try:
+        session.enter_expert(args.expert_password)
         log(f"{host}: installing {args.package}")
-        result = session.run(f"installer install {args.package}", timeout=args.install_timeout)
+        try:
+            result = session.run(
+                expert_installer_command(args.package), timeout=args.install_timeout
+            )
+        except CheckPointError as exc:
+            log(
+                f"{host}: installer session ended before status was returned; "
+                "target reconciliation is required after reconnect "
+                f"({exc})"
+            )
+            return False
         print_section(host, result)
+        rc = installer_return_code(result.output)
+        if rc is None:
+            raise CheckPointError(f"{host}: installer did not return an exit status")
+        if rc != 0:
+            raise CheckPointError(f"{host}: installer failed with exit status {rc}")
+        return True
+    finally:
+        session.close()
+
+
+def verify_rolling_target(args: argparse.Namespace, host: str) -> None:
+    session = connect(args, host)
+    try:
+        version = session.run("show version all", timeout=120)
+        packages = session.run("show installer packages installed", timeout=120)
+        print_section(host, version)
+        print_section(host, packages)
+        if not version_output_matches_target(version.output, args.target_version):
+            raise CheckPointError(
+                f"{host}: target version {args.target_version} was not reached"
+            )
+        if not package_table_has_installed_target(
+            packages.output, args.package, args.target_take
+        ):
+            raise CheckPointError(
+                f"{host}: target Take {args.target_take} and exact package "
+                "were not confirmed as installed"
+            )
     finally:
         session.close()
 
@@ -1071,6 +1172,7 @@ def run_rolling(args: argparse.Namespace) -> None:
     download_and_verify(args, standby.host)
     install_package(args, standby.host)
     wait_for_reconnect(args, standby.host)
+    verify_rolling_target(args, standby.host)
 
     log(f"{active.host}: forcing failover with {DEFAULT_FAILOVER_DOWN}")
     clusterxl_admin(args, active.host, "down")
@@ -1097,6 +1199,7 @@ def run_rolling(args: argparse.Namespace) -> None:
     download_and_verify(args, active.host)
     install_package(args, active.host)
     wait_for_reconnect(args, active.host)
+    verify_rolling_target(args, active.host)
     run_precheck(args)
 
 
@@ -1109,6 +1212,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--password-env", default="CP_PASSWORD")
     parser.add_argument("--expert-password-env", default="CP_EXPERT_PASSWORD")
     parser.add_argument("--package", default=DEFAULT_PACKAGE)
+    parser.add_argument("--target-version", default="")
+    parser.add_argument("--target-take", default="")
     parser.add_argument(
         "--phase",
         choices=[
@@ -1163,6 +1268,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
     if not re.fullmatch(r"[\w. -]+", args.package):
         parser.error("--package contains unsafe characters")
+    if args.phase == "rolling":
+        if not args.target_version:
+            parser.error("--target-version is required for --phase rolling")
+        if not re.fullmatch(r"\d{1,4}", args.target_take):
+            parser.error(
+                "--target-take is required for --phase rolling and must be numeric"
+            )
 
     if args.phase in {"support-diff", "support-analyze"}:
         args.password = ""

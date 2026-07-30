@@ -46,4 +46,3 @@
         dest: "{{ reports_dir }}/39_api_repository_{{ chg_number | default('unknown') }}_{{ api_step_slug }}.txt"
         content: "{{ api_repository.stdout }}\n{{ api_repository.stderr }}\n"
         mode: "0600"
-

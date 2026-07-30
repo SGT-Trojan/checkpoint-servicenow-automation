@@ -1,0 +1,7 @@
+Cluster Mode: High Availability (Active Up)
+
+ID         Unique Address  Assigned Load   State          Name
+1 (local)  192.0.2.20      0%              ACTIVE         EXAMPLE-GW-A
+2          192.0.2.21      100%            STANDBY        EXAMPLE-GW-B
+
+Active PNOTEs: None

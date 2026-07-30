@@ -55,4 +55,3 @@
         dest: "{{ reports_dir }}/41_api_execute_{{ chg_number | default('unknown') }}_{{ report_suffix }}.txt"
         content: "{{ api_execute.stdout }}\n{{ api_execute.stderr }}\n"
         mode: "0600"
-

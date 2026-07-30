@@ -46,4 +46,3 @@
         dest: "{{ reports_dir }}/40_api_verify_{{ chg_number | default('unknown') }}_{{ api_step_slug }}.txt"
         content: "{{ api_verify.stdout }}\n{{ api_verify.stderr }}\n"
         mode: "0600"
-

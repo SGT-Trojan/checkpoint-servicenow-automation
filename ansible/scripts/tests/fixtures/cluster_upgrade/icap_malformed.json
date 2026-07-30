@@ -1,0 +1,5 @@
+{
+  "cpwd": "CICAP data unavailable",
+  "listener": "ss -lntp | grep :1344",
+  "process": "root 999 1 0 14:02 ? 00:00:00 grep c-icap"
+}

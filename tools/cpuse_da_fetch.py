@@ -27,12 +27,19 @@ Download ID catalog (build 2771, verified 2026-07-12 from sk92449):
 Always re-scrape; IDs and the recommended build change when Check Point publishes.
 """
 from __future__ import annotations
-import argparse, hashlib, html, json, os, re
+
+import argparse
+import hashlib
+import html
+import json
+import os
+import re
 from pathlib import Path
 
 SK_URL = "https://support.checkpoint.com/results/sk/sk92449"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36"
 DEFAULT_ENV = "~/.config/cpuc/usercenter.env"
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.IGNORECASE)
 
 
 def load_env(path: str) -> dict:
@@ -88,6 +95,32 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def require_published_sha256(value: object) -> str:
+    published = str(value or "").strip()
+    if not SHA256_RE.fullmatch(published):
+        raise SystemExit("ERROR: download page did not provide a valid published SHA256")
+    return published.lower()
+
+
+def verify_download(path: Path, published_sha256: str) -> str:
+    expected = require_published_sha256(published_sha256)
+    actual = sha256_file(path).lower()
+    if actual != expected:
+        path.unlink(missing_ok=True)
+        raise SystemExit("ERROR: checksum mismatch against the SK-published SHA256")
+    return actual
+
+
+def persist_session_state(context: object, state_file: Path) -> None:
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    context.storage_state(path=str(state_file))
+    try:
+        os.chmod(state_file, 0o600)
+    except OSError as exc:
+        state_file.unlink(missing_ok=True)
+        raise SystemExit(f"ERROR: could not secure UserCenter session state: {exc}") from exc
 
 
 def download(env: dict, download_id: str, dest_dir: Path) -> dict:
@@ -148,22 +181,23 @@ def download(env: dict, download_id: str, dest_dir: Path) -> dict:
         }
         if re.search(r"not entitled", body, re.I):
             b.close(); raise SystemExit("ERROR: account is not entitled to this download")
-        with pg.expect_download(timeout=90000) as di:
-            pg.get_by_role("button", name=re.compile("download", re.I)).first.click()
-        d = di.value
-        dest = dest_dir / d.suggested_filename
-        d.save_as(str(dest))
-        # Persist the authenticated session for reuse (0600).
         try:
-            ctx.storage_state(path=str(state_file))
-            os.chmod(state_file, 0o600)
-        except Exception:
-            pass
-        b.close()
-    got = sha256_file(dest)
-    ok = (published["sha256"] is None) or (got.lower() == published["sha256"].lower())
+            expected_sha256 = require_published_sha256(published["sha256"])
+        except SystemExit:
+            b.close()
+            raise
+        try:
+            with pg.expect_download(timeout=90000) as di:
+                pg.get_by_role("button", name=re.compile("download", re.I)).first.click()
+            d = di.value
+            dest = dest_dir / d.suggested_filename
+            d.save_as(str(dest))
+            got = verify_download(dest, expected_sha256)
+            persist_session_state(ctx, state_file)
+        finally:
+            b.close()
     return {"path": str(dest), "size": dest.stat().st_size, "sha256": got,
-            "published": published, "verified": ok}
+            "published": published, "verified": True}
 
 
 def main() -> int:

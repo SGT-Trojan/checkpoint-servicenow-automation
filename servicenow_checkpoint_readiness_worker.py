@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import fcntl
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, TextIO
 
 from servicenow_checkpoint_runner import (
     DEFAULT_ANSIBLE_PLAYBOOK,
@@ -43,6 +43,7 @@ AUTO_PREFIX = "Automated Check Point readiness validation"
 MANUAL_PREFIX = "Firewall Deploy manual readiness remediation"
 FIREWALL_DEPLOY_GROUP = os.environ.get("SN_FIREWALL_DEPLOY_GROUP_SYS_ID", "")
 RUNS_DIR = ROOT / "runs" / "readiness"
+DEFAULT_LOCK_FILE = RUNS_DIR / "readiness-worker.lock"
 ATTACHMENT_WAIT_MARKER = "[CHECKPOINT_ATTACHMENT_WAIT]"
 ATTACHMENT_VARIABLE_NAMES = {"cpuse_package_upload", "cpuse_dependency_upload"}
 
@@ -355,12 +356,24 @@ def process_once(args: argparse.Namespace, sn: ServiceNowClient) -> bool:
     return False
 
 
+def acquire_worker_lock(path: Path) -> TextIO:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock = path.open("w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        lock.close()
+        raise RuntimeError(f"readiness worker is already running: {path}") from exc
+    return lock
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--instance", default=os.environ.get("SN_INSTANCE", ""))
     ap.add_argument("--sn-username", default=os.environ.get("SN_USERNAME", ""))
     ap.add_argument("--sn-password", default=os.environ.get("SN_PASSWORD", ""))
     ap.add_argument("--ansible-playbook", default=str(DEFAULT_ANSIBLE_PLAYBOOK))
+    ap.add_argument("--lock-file", default=str(DEFAULT_LOCK_FILE))
     ap.add_argument("--poll-interval", type=int, default=60)
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--attachment-grace", type=int, default=180)
@@ -372,11 +385,17 @@ def main() -> int:
     if not FIREWALL_DEPLOY_GROUP:
         raise SystemExit("ERROR: SN_FIREWALL_DEPLOY_GROUP_SYS_ID is required")
     sn = ServiceNowClient(args.instance, args.sn_username, args.sn_password)
-    while True:
-        did = process_once(args, sn)
-        if args.once:
-            return 0 if did else 2
-        time.sleep(max(args.poll_interval, 5))
+    try:
+        lock = acquire_worker_lock(Path(args.lock_file))
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 3
+    with lock:
+        while True:
+            did = process_once(args, sn)
+            if args.once:
+                return 0 if did else 2
+            time.sleep(max(args.poll_interval, 5))
 
 
 if __name__ == "__main__":

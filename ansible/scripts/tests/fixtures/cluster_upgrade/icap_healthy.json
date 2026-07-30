@@ -1,0 +1,5 @@
+{
+  "cpwd": "CICAP 1234 E 1 [14:02:03] 0",
+  "listener": "LISTEN 0 128 192.0.2.20:1344 0.0.0.0:* users:((\"c-icap\",pid=1234,fd=4))",
+  "process": "root 1234 1 0 14:02 ? 00:00:01 /usr/bin/c-icap"
+}

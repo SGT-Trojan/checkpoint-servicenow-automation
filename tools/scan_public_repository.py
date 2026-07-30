@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Fail when a public source tree contains forbidden private or secret material."""
 from __future__ import annotations
-import os
 from pathlib import Path
 import re
 import sys
