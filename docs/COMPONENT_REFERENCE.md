@@ -152,7 +152,7 @@ how the switches combine and which operations can change systems.
 
 | Program | Required interface | Optional switches and accepted values | Change scope |
 |---|---|---|---|
-| `checkpoint_cluster_upgrade.py` | `--phase`; `--members GW1 GW2` except support diff/analyze | `--phase precheck|download-verify|support-capture|support-diff|support-analyze|failover-test|rolling`; `--package`; `--target standby|HOST`; `--icap-mode required|optional|disabled`; timeouts, proxy, support and diff paths | `download-verify`, `failover-test`, and `rolling` require `--execute`; always pass an explicit `--package` for package phases |
+| `checkpoint_cluster_upgrade.py` | `--phase`; `--members GW1 GW2` except support diff/analyze | `--phase precheck|download-verify|support-capture|support-diff|support-analyze|failover-test|rolling`; `--package`; `--target standby|HOST`; rolling also requires `--target-version` and `--target-take`; `--icap-mode required|optional|disabled`; timeouts, proxy, support and diff paths | `download-verify`, `failover-test`, and `rolling` require `--execute`; always pass an explicit `--package` for package phases |
 | `discover_checkpoint_targets.py` | `--mds-host`, `--target-ips` | `--username`; `--preferred-domain`; `--output`; persistence requires both `--db-path` and positive `--change-id` | Read-only unless persistence is requested; scans all domains before returning |
 | `validate_mds_packages.py` | `--activity-plan-file` | `--username` | Read-only |
 | `validate_deployment_agent.py` | `--activity-plan-file` | `--username`; `--minimum-build`; `--offline-package-path`; `--offline-package-build` | Read-only |
@@ -182,6 +182,8 @@ transport/auth failure, and 64 invalid invocation.
 | `--password-env` | Environment variable containing the Gaia password; default `CP_PASSWORD` |
 | `--expert-password-env` | Environment variable containing the Expert password; default `CP_EXPERT_PASSWORD` |
 | `--package` | Explicit CPUSE package identity; do not rely on the historical default |
+| `--target-version` | Expected Gaia release; required for `rolling` and checked before failover |
+| `--target-take` | Expected installed JHF Take; required for `rolling` and checked with the exact package before failover |
 | `--phase` | `precheck`, `download-verify`, `support-capture`, `support-diff`, `support-analyze`, `failover-test`, or `rolling` |
 | `--target` | `standby` or a member address/name for `download-verify` |
 | `--execute` | Allows a change-capable phase to proceed |
@@ -205,6 +207,12 @@ transport/auth failure, and 64 invalid invocation.
 | `--capture-files` | Files consumed by support analysis |
 | `--failover-wait-seconds` | ClusterXL transition timeout seconds; default 120 |
 | `--icap-mode` | `required`, `optional`, or `disabled`; default `required` |
+
+Standalone rolling execution fails if the installer returns a nonzero status. If
+the reboot closes SSH before a status is returned, execution may continue only
+to reconnect and target reconciliation. The upgraded member must report the
+requested version and exact installed package/Take before failover.
+
 
 ### 4.2 Other Python entry points
 

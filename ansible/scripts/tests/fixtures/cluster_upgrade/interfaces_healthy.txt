@@ -1,0 +1,10 @@
+Required interfaces: 2
+Required secured interfaces: 1
+
+Interface Name:  Status
+eth0             UP
+eth1 (S)         UP
+S - sync, M - monitored
+
+Virtual cluster interfaces:
+eth0 192.0.2.100

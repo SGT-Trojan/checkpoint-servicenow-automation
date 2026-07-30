@@ -164,6 +164,8 @@ servicenow_checkpoint_worker.py
 ```bash
 python3 -m unittest discover -s ansible/scripts/tests -v
 python3 -m unittest discover -s tools/tests -v
+ruff check . --select E9,F --no-cache
+ansible-lint ansible/playbooks examples/*/playbooks
 for playbook in ansible/playbooks/*.yml $(find examples -path '*/playbooks/*.yml' -print); do
   ansible-playbook --syntax-check "$playbook" -i ansible/inventory/hosts.yml
 done

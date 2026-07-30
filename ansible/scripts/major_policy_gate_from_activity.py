@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shlex
 import sys
 import time
@@ -131,7 +130,6 @@ def main() -> int:
     mds_host = cp.get('mds_host')
     cma_name = cp.get('cma_name') or ''
     domain = cp.get('domain') or ''
-    cma_ip = cp.get('cma_ip') or ''
     cluster = cp.get('cluster_name')
     package = cp.get('policy_package') or ''
     current_version = cp.get('current_version') or ''

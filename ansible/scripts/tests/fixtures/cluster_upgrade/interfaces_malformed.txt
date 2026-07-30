@@ -1,0 +1,2 @@
+Interface data unavailable
+eth0 UP
