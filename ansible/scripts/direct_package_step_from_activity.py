@@ -6,6 +6,7 @@ import concurrent.futures
 import json
 import os
 import re
+import shlex
 import sys
 import time
 from pathlib import Path
@@ -112,10 +113,28 @@ def commands_for_step(step: dict) -> list[str]:
     raise SystemExit(f'ERROR: unsupported package action {action!r}')
 
 
-def run_checked(session: c.SshPty, host: str, command: str, timeout: int) -> str:
-    result = session.run(command, timeout=timeout)
+def rc_captured_clish_command(command: str) -> str:
+    return (
+        f"clish -c {shlex.quote(command)}; "
+        "rc=$?; printf '\\n__RC=%s\\n' \"$rc\""
+    )
+
+
+def run_checked(
+    session: c.SshPty,
+    host: str,
+    command: str,
+    timeout: int,
+) -> str:
+    executed = rc_captured_clish_command(command)
+    result = session.run(executed, timeout=timeout)
     print(f'===== {host}: {command} =====')
     print(result.output.rstrip())
+    rc = c.installer_return_code(result.output)
+    if rc is None:
+        raise RuntimeError(f'{host}: command did not return an exit status: {command}')
+    if rc != 0:
+        raise RuntimeError(f'{host}: command failed with exit status {rc}: {command}')
     lower = result.output.lower()
     fatal = ['failed', 'error', 'not allowed', 'not found', 'cannot']
     tolerated = ['no errors', 'completed successfully']
@@ -197,6 +216,50 @@ def run_interactive_uninstall(session: c.SshPty, host: str, package_name: str, t
     text = c.strip_ansi(out.decode(errors='replace'))
     print(text.rstrip())
     raise TimeoutError(f'{host}: timed out waiting for uninstall result')
+
+
+def package_identity_is_installed(output: str, package_name: str) -> bool:
+    filename = Path(package_name).name.lower()
+    stem = re.sub(r"\.(?:tgz|tar)$", "", filename, flags=re.IGNORECASE)
+    patterns = [re.escape(filename)]
+    if stem != filename:
+        patterns.append(rf"{re.escape(stem)}\.(?:tgz|tar)")
+    for line in output.splitlines():
+        lower = line.lower()
+        if any(marker in lower for marker in ("not installed", "uninstalled", "removed")):
+            continue
+        for pattern in patterns:
+            bounded = rf"(?<![A-Za-z0-9_.-])(?:{pattern})(?![A-Za-z0-9_.-])"
+            if re.search(bounded, lower):
+                return True
+    return False
+
+
+def verify_package_absent(
+    host: str,
+    username: str,
+    password: str,
+    expert_password: str,
+    package_name: str,
+) -> None:
+    session = c.SshPty(host, username, password, connect_timeout=20)
+    try:
+        session.connect()
+        session.enter_expert(expert_password)
+        output = run_checked(
+            session,
+            host,
+            "show installer packages installed",
+            180,
+        )
+        if package_identity_is_installed(output, package_name):
+            raise RuntimeError(
+                f"{host}: uninstall reconciliation found package still installed: "
+                f"{package_name}"
+            )
+        print(f"{host}: confirmed package absent after uninstall: {package_name}")
+    finally:
+        session.close()
 
 
 def wait_for_ssh_return(host: str, username: str, password: str, timeout: int) -> None:
@@ -326,15 +389,17 @@ def main() -> int:
         session = c.SshPty(host, args.username, password, connect_timeout=20)
         try:
             session.connect()
+            session.enter_expert(expert_password)
             if package_type == "deployment_agent" and action in {"install", "upgrade"}:
                 requested_build = deployment_agent_package_build(step)
-                status = run_checked(session, host, "show installer status all", 180)
+                status = run_checked(
+                    session, host, "show installer status all", 180
+                )
                 installed_build = installed_deployment_agent_build(status)
                 if requested_build is not None and installed_build is not None and installed_build >= requested_build:
                     print(f"{host}: Deployment Agent build {installed_build} already satisfies requested build {requested_build}; installation is an idempotent no-op.")
                     return
             if action == 'remove':
-                session.enter_expert(expert_password)
                 package_name = resolve_remove_package_name(session, step)
                 session.run('exit', timeout=30)
                 run_interactive_uninstall(session, host, package_name, args.timeout)
@@ -349,6 +414,9 @@ def main() -> int:
                         f'{args.auto_reboot_grace}s after successful uninstall; '
                         'explicit reboot fallback is disabled'
                     )
+                verify_package_absent(
+                    host, args.username, password, expert_password, package_name
+                )
                 wait_cluster_ready(host, args.username, password, min(args.timeout, 1800))
             else:
                 for command in commands:

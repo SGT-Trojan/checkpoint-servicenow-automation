@@ -142,7 +142,7 @@ class RollingOutcomeTests(unittest.TestCase):
     def test_installer_return_code_is_required_and_checked(self) -> None:
         success = FakeSession(["installation started\n__RC=0\n"])
         with mock.patch.object(upgrade, "connect", return_value=success):
-            self.assertTrue(upgrade.install_package(self.args(), "192.0.2.20"))
+            self.assertIsNone(upgrade.install_package(self.args(), "192.0.2.20"))
         self.assertTrue(success.expert_entered)
         self.assertIn("clish -c", success.commands[0])
 
@@ -156,7 +156,7 @@ class RollingOutcomeTests(unittest.TestCase):
     def test_install_disconnect_requires_later_reconciliation(self) -> None:
         session = FakeSession(error=upgrade.CheckPointError("connection closed"))
         with mock.patch.object(upgrade, "connect", return_value=session):
-            self.assertFalse(upgrade.install_package(self.args(), "192.0.2.20"))
+            self.assertIsNone(upgrade.install_package(self.args(), "192.0.2.20"))
 
     def test_post_install_reconciliation_checks_version_and_take(self) -> None:
         good = FakeSession(

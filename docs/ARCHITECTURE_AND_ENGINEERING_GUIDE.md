@@ -501,7 +501,7 @@ Builds final package expectations and verifies installed/removed package state a
 
 ### `direct_package_step_from_activity.py`
 
-Runs direct CPUSE package install/remove, handles interactive uninstall, detects blocked hotfixes, waits for reboot/reconnect, and waits for cluster readiness.
+Runs direct CPUSE package install/remove. Non-interactive operations require a captured exit status. Interactive uninstall retains its PTY dialog, then verifies the exact package is absent after reboot and reconnect before cluster readiness can pass.
 
 ### `validate_deployment_agent.py`
 

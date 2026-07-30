@@ -707,7 +707,7 @@ def download_and_verify(args: argparse.Namespace, host: str) -> None:
         session.close()
 
 
-def install_package(args: argparse.Namespace, host: str) -> bool:
+def install_package(args: argparse.Namespace, host: str) -> None:
     require_execute(args, "install CPUSE package")
     if not args.expert_password:
         raise CheckPointError("Expert password is required to capture installer status")
@@ -725,14 +725,13 @@ def install_package(args: argparse.Namespace, host: str) -> bool:
                 "target reconciliation is required after reconnect "
                 f"({exc})"
             )
-            return False
+            return
         print_section(host, result)
         rc = installer_return_code(result.output)
         if rc is None:
             raise CheckPointError(f"{host}: installer did not return an exit status")
         if rc != 0:
             raise CheckPointError(f"{host}: installer failed with exit status {rc}")
-        return True
     finally:
         session.close()
 
