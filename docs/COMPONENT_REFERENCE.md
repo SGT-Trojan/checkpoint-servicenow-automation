@@ -130,9 +130,9 @@ Each `members` entry accepts these keys:
 | `order` | Recommended | Integer execution order |
 | `name` | Yes | Unique identifier passed as `--step`; use letters, numbers, `.`, `_`, or `-` |
 | `action` | Yes | `install`, `upgrade`, `remove`, or `uninstall` |
-| `package_name` | Yes | Approved package filename for install/upgrade, or unambiguous installed identity/Take alias for removal |
+| `package_name` | Yes | Approved package filename. Ticket CSV values may use letters, numbers, `.`, `_`, `+`, or `-`; whitespace and shell/clish metacharacters are rejected |
 | `package_type` | Recommended | `jhf`, `blink`, `deployment_agent`, or the locally supported wrapper type |
-| `source_path` | Install/upgrade | Absolute package path on MDS |
+| `source_path` | Install/upgrade | Absolute package path on MDS. Ticket CSV values use the same filename characters plus `/`; relative paths and `.` or `..` segments are rejected |
 | `dest_path` | Direct staging, optional | Gateway destination directory; normally `/var/log/tmp` |
 | `checksum_sha1` | Install/upgrade | Published 40-character lowercase hexadecimal SHA-1; at least one approved hash is mandatory |
 | `checksum_sha256` | Install/upgrade | Published 64-character lowercase hexadecimal SHA-256; preferred when available |
@@ -142,8 +142,9 @@ Each `members` entry accepts these keys:
 | `notes` | Optional | Non-secret operator context |
 
 For removal, put the package to remove in `package_name` with `action: remove`.
-Do not put the removal target in `requires_present`; that list represents true
-prerequisites.
+Ticket CSV input must use the exact installed package identity rather than a
+space-containing Take label. Do not put the removal target in
+`requires_present`; that list represents true prerequisites.
 
 ## 4. Python Helper CLI Reference
 
