@@ -12,6 +12,11 @@ Restart=always
 RestartSec=15
 User=checkpoint-auto
 Group=checkpoint-auto
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ReadWritePaths=/opt/checkpoint-automation/runs
 
 [Install]
 WantedBy=multi-user.target

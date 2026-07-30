@@ -27,6 +27,7 @@ from servicenow_checkpoint_runner import (
     ROOT,
     ServiceNowClient,
     apply_dependency_rows,
+    attachment_destination,
     build_base_plan,
     choose_attachment,
     discover_targets,
@@ -35,6 +36,7 @@ from servicenow_checkpoint_runner import (
     parse_tabular_file,
     runner_vars,
     run_playbook,
+    write_attachment_bytes,
 )
 
 READY_MARKER = "[CHECKPOINT_READINESS_READY]"
@@ -116,10 +118,9 @@ def attachment_rows(sn: ServiceNowClient, ritm_id: str) -> list[dict[str, Any]]:
 
 def download_attachments(sn: ServiceNowClient, attachments: list[dict[str, Any]], run_dir: Path) -> None:
     out_dir = run_dir / "attachments"
-    out_dir.mkdir(parents=True, exist_ok=True)
     for att in attachments:
-        out = out_dir / str(att.get("file_name") or att["sys_id"])
-        out.write_bytes(sn.attachment_bytes(att["sys_id"]))
+        out = attachment_destination(out_dir, att)
+        write_attachment_bytes(out, sn.attachment_bytes(att["sys_id"]))
         att["local_path"] = str(out)
 
 
