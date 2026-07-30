@@ -1,16 +1,17 @@
 # Component and Integration Reference
 
-This reference is for operators who want to reuse part of the repository instead
-of adopting the complete ServiceNow workflow. It documents the callable
-interfaces of the shipped Python helpers and Ansible playbooks.
+Use this guide when you want one script or playbook instead of the full
+ServiceNow workflow. If you are new to the project, read [Start Here](START_HERE.md)
+first.
 
-The examples use documentation-only addresses from RFC 5737. Replace every
-address, object name, path, package name, and checksum. Begin with read-only
-commands in a non-production environment.
+The tables list the exact command options, JSON keys, YAML variables, outputs,
+and return codes. The examples use addresses reserved for documentation.
+Replace every sample address, name, path, package, and checksum. Start with
+read-only commands in a non-production environment.
 
-## 1. Choose a Composition Pattern
+## 1. Choose What to Reuse
 
-| Goal | Interface to reuse | Input contract |
+| Goal | Use this | What you provide |
 |---|---|---|
 | Add Check Point discovery or validation to an existing program | Call a helper in `ansible/scripts/` | CLI arguments plus a JSON activity plan where required |
 | Add repository phases to an existing Ansible project | Import or invoke a playbook in `ansible/playbooks/` | Ansible extra variables, normally YAML, plus credentials in environment variables |
@@ -25,9 +26,9 @@ that needs plan fields generally expects two variables:
 - `activity_plan_file`: absolute path to the JSON plan on the controller.
 - `activity_plan`: the same JSON decoded into an Ansible mapping.
 
-Do not assume that supplying one supplies the other.
+You must pass both values. Supplying one does not create the other.
 
-## 2. Controller and Credential Contract
+## 2. Where Commands Run and How They Get Credentials
 
 Run the shipped playbooks on `localhost`; the helpers create their own SSH PTY
 sessions to Gaia or the MDS. They do not use Ansible's SSH connection to manage
@@ -258,6 +259,8 @@ that says `deployment_backend: api` does not satisfy
 The same rule applies to CDT and direct execution.
 
 ## 6. Copy-ready Examples
+For complete read-only, fail-closed, CDT, API, Deployment Agent, and composition
+examples, start with [`examples/README.md`](../examples/README.md).
 
 ### 6.1 Call read-only helpers directly
 
@@ -293,7 +296,7 @@ a placeholder, not a program shipped by this repository.
 ansible-playbook \
   -i ansible/inventory/hosts.yml \
   examples/playbooks/read_only_cluster_checks.yml \
-  -e @examples/vars/read_only_cluster.yml
+  -e @examples/common/vars.yml
 ```
 
 The example wrapper imports `00_precheck.yml` and `22_monitor_gateways.yml`.

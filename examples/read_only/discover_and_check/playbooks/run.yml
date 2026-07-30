@@ -1,0 +1,4 @@
+---
+- import_playbook: ../../../../ansible/playbooks/02_discover_targets.yml
+- import_playbook: ../../../../ansible/playbooks/00_precheck.yml
+- import_playbook: ../../../../ansible/playbooks/22_monitor_gateways.yml

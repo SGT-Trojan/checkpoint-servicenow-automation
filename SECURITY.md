@@ -13,10 +13,10 @@ Use GitHub's private vulnerability reporting feature when available.
   in Git, activity CSV files, command arguments, or evidence.
 - Use a dedicated least-privilege ServiceNow integration account.
 - Separate MDS and gateway credentials where the environment requires it.
-- Verify SSH host-key changes through an authoritative channel.
+- Verify SSH host-key changes with a trusted source.
 - Keep live-system access outside GitHub-hosted runners.
 - Treat all install, remove, upgrade, failover, policy, and snapshot operations
-  as governed production changes.
+  as approved production changes.
 
 ## Supported versions
 

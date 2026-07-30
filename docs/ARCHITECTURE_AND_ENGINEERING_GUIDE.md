@@ -1,30 +1,36 @@
 # Check Point ServiceNow Automation: Architecture and Engineering Guide
 
-Audience: automation engineers responsible for operating, extending, or productionizing the ServiceNow-driven Check Point firewall software automation workflow.
+This guide is for people who run, change, or support the full workflow. If you
+are new to the project, read [Start Here](START_HERE.md) first.
 
-This document describes the full architecture: ServiceNow request governance, the local workers, the runner, Ansible playbooks, helper scripts, Check Point MDS and gateway interactions, evidence, logs, gates, remediation, and known operational constraints.
+It explains how ServiceNow, the local workers, the runner, Ansible, and Check
+Point management work together. It also explains the safety checks, logs,
+human approvals, and recovery path.
 
-A legacy Flask prototype preceded this implementation but is not part of the supported workflow. The intended operating model is ServiceNow first: a user submits a catalog request, ServiceNow governs the change, local automation validates and executes only after the correct ServiceNow gates are satisfied, and all meaningful phase status is written back into ServiceNow.
+The supported ServiceNow flow starts with a catalog request. The automation
+checks the request before it creates a change. It starts firewall work only
+after the change is approved and in Implement. Each phase writes its result
+back to ServiceNow.
 
 ## 1. Executive Summary
 
-The workflow automates Check Point firewall software activities while preserving ServiceNow governance.
+The workflow runs Check Point software maintenance while ServiceNow controls
+the request, approval, and human tasks.
 
-At a high level:
+The basic flow is:
 
-1. A requester submits the Service Catalog item `CheckPoint FW Maintenance Activity`.
-2. ServiceNow creates a REQ and RITM.
-3. A ServiceNow business rule creates an automated readiness SCTASK.
-4. The local readiness worker validates the request against Check Point MDS, gateways, CPUSE package files, package prerequisites, and cluster health.
-5. If readiness passes, ServiceNow creates a governed CHG and the primary Implementation CTASK.
-6. If readiness fails, ServiceNow creates a manual Firewall Deploy remediation SCTASK. A Firewall Deploy engineer can remediate and close it to trigger CHG creation.
-7. The CHG follows normal approval, assessment, authorization, scheduling, and implement state handling.
-8. When the CHG reaches Implement and is approved, the local implementation worker starts the runner.
-9. The runner builds an activity plan, performs discovery, runs Ansible playbooks, uses CDT or direct CPUSE methods under the hood, posts phase notes, pauses at tester gates, and produces evidence.
-10. On success, the worker creates and closes the final validation CTASK, closes the Implementation CTASK, and moves the CHG to Review.
-11. On failure, the worker creates an Engineer Remediation CTASK and waits for a deliberate resume decision.
+1. A requester submits the Service Catalog item.
+2. ServiceNow creates the REQ, RITM, and readiness SCTASK.
+3. The readiness worker checks the target, cluster health, packages, hashes, and prerequisites.
+4. A passing result creates the CHG and implementation task. A failed result creates a task for a Firewall Deploy engineer.
+5. The CHG follows the normal approval and scheduling process.
+6. After the approved CHG enters Implement, the implementation worker starts the runner.
+7. The runner uses Ansible and the selected backend to change the standby member first. It records each phase and pauses for tester approval.
+8. Success closes the implementation tasks and moves the CHG to Review.
+9. Failure creates a recovery task and saves the phase that must be run again.
 
-Every risky action is traceable to a ServiceNow request, a readiness decision, an approved change, a controlled implementation task, and a recoverable execution state.
+The request, checks, approval, tasks, logs, and saved restart point stay linked
+to the same change.
 
 ## 2. Component Map
 

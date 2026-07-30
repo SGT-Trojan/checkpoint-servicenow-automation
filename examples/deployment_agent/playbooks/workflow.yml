@@ -1,0 +1,22 @@
+---
+- import_playbook: ../../../ansible/playbooks/01_validate_activity_plan.yml
+  vars: &plan
+    activity_plan_file: "{{ example_plan_file }}"
+    activity_plan: "{{ lookup('file', example_plan_file) | from_json }}"
+    step: install_deployment_agent
+    phase: install-deployment-agent
+- import_playbook: ../../../ansible/playbooks/00_precheck.yml
+- import_playbook: ../../../ansible/playbooks/07_validate_deployment_agent.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/06_validate_mds_package.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/05_airgap_package_gate.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/08_validate_package_prerequisites.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/30_direct_package_step.yml
+  vars:
+    <<: *plan
+    checkpoint_execute_direct: "{{ allow_direct_changes | default(false) }}"
+- import_playbook: ../../../ansible/playbooks/07_validate_deployment_agent.yml
+  vars: *plan

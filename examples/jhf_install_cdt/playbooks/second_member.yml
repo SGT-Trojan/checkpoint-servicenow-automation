@@ -1,0 +1,17 @@
+---
+- import_playbook: ../../../ansible/playbooks/08_validate_package_prerequisites.yml
+  vars: &plan
+    activity_plan_file: "{{ example_plan_file }}"
+    activity_plan: "{{ lookup('file', example_plan_file) | from_json }}"
+    step: install_approved_jhf
+    phase: second-member
+- import_playbook: ../../../ansible/playbooks/10_cdt_generate_candidates.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/20_cdt_execute_guarded.yml
+  vars:
+    <<: *plan
+    checkpoint_execute_upgrade: "{{ allow_cdt_changes | default(false) }}"
+- import_playbook: ../../../ansible/playbooks/22_monitor_gateways.yml
+- import_playbook: ../../../ansible/playbooks/60_postcheck.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/61_restore_original_active.yml

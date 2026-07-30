@@ -1,0 +1,13 @@
+---
+# Synthetic shared values. Replace every value locally.
+chg_number: MANUAL_EXAMPLE
+mds_host: "192.0.2.10"
+cma_name: EXAMPLE-DOMAIN
+target_ips: "192.0.2.20,192.0.2.21"
+member_a_ip: "192.0.2.20"
+member_b_ip: "192.0.2.21"
+icap_mode: required
+change_id: 0
+allow_cdt_changes: false
+allow_api_changes: false
+allow_direct_changes: false

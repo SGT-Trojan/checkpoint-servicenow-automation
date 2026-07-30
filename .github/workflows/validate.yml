@@ -23,14 +23,15 @@ jobs:
         run: |
           python3 -m venv /tmp/ansible-min
           /tmp/ansible-min/bin/pip install "ansible-core==2.16.14"
-          for playbook in ansible/playbooks/*.yml examples/playbooks/*.yml; do
+          /tmp/ansible-min/bin/python -m unittest discover -s tests -p 'test_examples.py' -v
+          for playbook in ansible/playbooks/*.yml $(find examples -path '*/playbooks/*.yml' -print); do
             /tmp/ansible-min/bin/ansible-playbook --syntax-check "$playbook" -i ansible/inventory/hosts.yml
           done
       - name: Check current Ansible
         run: |
           python3 -m venv /tmp/ansible-current
           /tmp/ansible-current/bin/pip install "ansible-core>=2.21.2,<2.22"
-          for playbook in ansible/playbooks/*.yml examples/playbooks/*.yml; do
+          for playbook in ansible/playbooks/*.yml $(find examples -path '*/playbooks/*.yml' -print); do
             /tmp/ansible-current/bin/ansible-playbook --syntax-check "$playbook" -i ansible/inventory/hosts.yml
           done
       - run: python3 tools/scan_public_repository.py .

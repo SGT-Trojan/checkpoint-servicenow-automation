@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-01-01T00:00:00Z",
+  "change": {
+    "number": "MANUAL_EXAMPLE",
+    "activity_type": "Software Patch Activity",
+    "state": "Implement",
+    "environment": "lab"
+  },
+  "checkpoint": {
+    "current_version": "R82",
+    "target_version": "R82",
+    "target_take": "REPLACE_WITH_APPROVED_TAKE",
+    "cluster_name": "EXAMPLE-CLUSTER",
+    "cluster_mode": "cluster",
+    "mds_host": "192.0.2.10",
+    "cma_name": "EXAMPLE_CMA_Server",
+    "domain": "EXAMPLE-DOMAIN",
+    "cma_ip": "192.0.2.11",
+    "target_ips": [
+      "192.0.2.20",
+      "192.0.2.21"
+    ],
+    "policy_package": "EXAMPLE-POLICY",
+    "members": [
+      {
+        "slot": "member_a",
+        "hostname": "EXAMPLE-GW-A",
+        "ip": "192.0.2.20",
+        "management_ip": "192.0.2.20",
+        "access_ip": "192.0.2.20"
+      },
+      {
+        "slot": "member_b",
+        "hostname": "EXAMPLE-GW-B",
+        "ip": "192.0.2.21",
+        "management_ip": "192.0.2.21",
+        "access_ip": "192.0.2.21"
+      }
+    ],
+    "preserve_original_active": true,
+    "original_active_member": "",
+    "require_one_active_member": true,
+    "icap_mode": "required"
+  },
+  "execution": {
+    "method": "Management Web API Central Deployment",
+    "deployment_backend": "api",
+    "staging_method": "cprid_from_mds",
+    "package_source_dir": "/var/log/tmp",
+    "tester_pause": true,
+    "support_capture_script": "/opt/checkpoint-automation/ansible/scripts/gateway_support_commands.example.sh"
+  },
+  "package_steps": [
+    {
+      "order": 1,
+      "name": "install_approved_jhf",
+      "action": "install",
+      "package_name": "REPLACE_WITH_APPROVED_PACKAGE.tgz",
+      "package_type": "jhf",
+      "source_path": "/var/log/tmp/REPLACE_WITH_APPROVED_PACKAGE.tgz",
+      "dest_path": "/var/log/tmp",
+      "checksum_sha1": "",
+      "checksum_sha256": "REPLACE_WITH_PUBLISHED_64_HEX_SHA256",
+      "requires_present": [],
+      "requires_absent": [],
+      "reboot_expected": true,
+      "notes": "Documentation template; replace every placeholder before use"
+    }
+  ],
+  "workflow_gates": [
+    {
+      "name": "tester_validation_after_first_member",
+      "enabled": true,
+      "after_phase": "failover-to-first",
+      "decision_source": "external_orchestrator"
+    },
+    {
+      "name": "restore_original_active",
+      "enabled": true,
+      "after_phase": "second-member",
+      "decision_source": "automation"
+    }
+  ],
+  "evidence": {
+    "support_capture_pre": true,
+    "support_capture_after_member_complete": true,
+    "support_capture_final": true,
+    "diff_required": true,
+    "requirements": "Retain sanitized phase output and integrity manifest"
+  }
+}

@@ -1,0 +1,1 @@
+{"_meta":"SYNTHETIC EXAMPLE OUTPUT - NOT LAB EVIDENCE","checkpoint":{"cluster_name":"EXAMPLE-CLUSTER","cma_name":"EXAMPLE_CMA_Server","domain":"EXAMPLE-DOMAIN","members":[{"hostname":"EXAMPLE-GW-A","ip":"192.0.2.20"},{"hostname":"EXAMPLE-GW-B","ip":"192.0.2.21"}],"policy_package":"EXAMPLE-POLICY"}}

@@ -1,24 +1,24 @@
 # CDT and Management API Deployment
 
-This guide explains the deployment interfaces used by this repository. It does
-not replace the Check Point documentation for the management release installed
-in an environment.
+This guide explains the two package-deployment backends. Read [Start Here](START_HERE.md)
+first if the terms CDT, MDS, or Management API are new to you. Always check the
+Check Point documentation for your installed management release.
 
-## Decision Summary
+## Which Backend Should I Use?
 
-Management API Central Deployment does not invoke CDT. They are separate
-deployment mechanisms with different commands, artifacts, credentials, and
-failure modes.
+Management API Central Deployment does not invoke CDT. They are separate tools.
+They use different commands, credentials, logs, and error handling.
 
 - Use Management API Central Deployment for an API-native package operation.
 - Use CDT through a restricted MDS execution channel when CDT behavior is
   required.
-- Keep readiness, target resolution, member order, failover control, human
-  gates, evidence, and resume state outside the transport choice.
-- Do not use a generic script API as an undocumented bridge between the two.
+- Let the runner control readiness, target selection, member order, failover,
+  tester approval, logs, and restart state. Changing the backend must not skip
+  these checks.
+- Do not use a generic script API to make one backend call the other.
 
-The API and CDT backends in this repository have separate runner branches,
-playbooks, execution flags, logs, and resume phases.
+This repository keeps the two backends separate. Each one has its own runner
+path, playbooks, execution flags, logs, and restart phases.
 
 ## Interfaces
 
@@ -31,14 +31,13 @@ playbooks, execution flags, logs, and resume phases.
 | Gaia REST API `run-script` | Gaia REST API on a specific Gaia system | The Gaia system receiving the call | Gaia task and output |
 | Direct CPUSE | Gaia Clish through the guarded direct helper | Selected gateway member | CPUSE package state and operation logs |
 
-The repository's API helper uses the same Management API command family that a
-direct HTTPS client or the `check_point.mgmt` Ansible collection uses. Its
-transport is different: the helper opens a restricted SSH session to the MDS
-and runs `mgmt_cli -r true`; Ansible modules normally open an HTTPS Web API
-session from the controller. Do not assume that their credentials, session
-lifetimes, or network controls are interchangeable.
+The API helper runs the same Management API commands used by an HTTPS client or
+the `check_point.mgmt` Ansible collection. The connection is different. This
+helper opens restricted SSH to the MDS and runs `mgmt_cli -r true`. Ansible
+modules normally connect to the Web API over HTTPS. They may need different
+credentials, session settings, and firewall rules.
 
-## API-Native Package Workflow
+## Management API Package Steps
 
 The following syntax matches the Management API behavior tested by this
 repository on its documented R81.20/R82 management path. Confirm the command

@@ -1,9 +1,20 @@
-# ServiceNow-Integrated Check Point Firewall Automation — Build & Replication Guide
+# Build the ServiceNow Integration
 
 Status: sanitized reference implementation. Replace all example values and validate every component in your own estate.
-Audience: ServiceNow developers (Sections 4–7) and automation engineers (Sections 8–13). Sections 1–3 and 14–17 are for both.
+Audience: ServiceNow developers (Sections 4-7) and automation engineers
+(Sections 8-13). Both groups should read Sections 1-3 and 14-17.
 
-This guide is a replication manual: following it end to end reproduces the working system described here — a ServiceNow-governed, Ansible-driven Check Point firewall maintenance automation in which every firewall-touching action is gated by a change record, every decision is recorded in fields (not free text), and every failure produces an actionable human task. The design is derived from a tested implementation, but this sanitized guide is not certification for another environment.
+New to the project? Read [Start Here](START_HERE.md) first. This guide is a detailed
+build manual. You can follow it in order, or use the section numbers as a
+reference while you build one part.
+
+This guide shows how to build the complete ServiceNow integration. ServiceNow
+controls the request and approval. Ansible runs the firewall steps. Fields store
+automation decisions, while notes explain them to people. A failure creates a
+task with the information an engineer needs to continue.
+
+The steps come from a tested build. You must still replace every example and
+validate the result in your own environment.
 
 ---
 
