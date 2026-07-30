@@ -137,8 +137,8 @@ def run_checked(
         raise RuntimeError(f'{host}: command failed with exit status {rc}: {command}')
     lower = result.output.lower()
     fatal = ['failed', 'error', 'not allowed', 'not found', 'cannot']
-    tolerated = ['no errors', 'completed successfully']
-    if any(marker in lower for marker in fatal) and not any(ok in lower for ok in tolerated):
+    secondary_scan = re.sub(r"\b(?:no errors|errors?\s*:\s*0|0 errors?)\b", "", lower)
+    if any(marker in secondary_scan for marker in fatal):
         raise RuntimeError(f'{host}: command reported failure marker: {command}')
     return result.output
 

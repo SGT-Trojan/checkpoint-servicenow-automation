@@ -1,0 +1,21 @@
+{
+  "package_name": [
+    "Take 76",
+    "package;reboot.tgz",
+    "package'quote.tgz",
+    "package\"quote.tgz",
+    "package*.tgz",
+    "../package.tgz",
+    "package.tgz "
+  ],
+  "source_path": [
+    "/var/log/package name.tgz",
+    "/var/log/package;reboot.tgz",
+    "/var/log/package'quote.tgz",
+    "/var/log/package\"quote.tgz",
+    "/var/log/package*.tgz",
+    "/var/log/tmp/../package.tgz",
+    "var/log/tmp/package.tgz",
+    " /var/log/tmp/package.tgz"
+  ]
+}

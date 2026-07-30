@@ -463,6 +463,31 @@ def validated_package_hashes(
     return sha1, sha256
 
 
+def validated_package_name(value: str) -> str:
+    stripped = value.strip()
+    if value != stripped or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*", value):
+        raise ValueError(
+            f"package_name {value!r} contains whitespace, path separators, or unsupported characters"
+        )
+    return value
+
+
+def validated_package_source_path(value: str) -> str:
+    stripped = value.strip()
+    parts = value.split("/")
+    if (
+        value != stripped
+        or not value.startswith("/")
+        or value.endswith("/")
+        or not re.fullmatch(r"/[A-Za-z0-9_.+/-]+", value)
+        or any(part in {"", ".", ".."} for part in parts[1:])
+    ):
+        raise ValueError(
+            f"source_path {value!r} must be an absolute package path without traversal or unsupported characters"
+        )
+    return value
+
+
 def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str = "/var/log/tmp") -> list[dict[str, Any]]:
     steps = []
     for i, row in enumerate(rows, 1):
@@ -470,6 +495,7 @@ def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str 
         package_name = lower.get("package_name") or lower.get("package") or lower.get("filename") or lower.get("file_name") or ""
         if not package_name:
             continue
+        package_name = validated_package_name(package_name)
         order_s = lower.get("sequence_number") or lower.get("sequence") or lower.get("order") or str(i)
         try:
             order = int(float(order_s))
@@ -480,6 +506,7 @@ def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str 
         name_base = re.sub(r"\.(tar|tgz|gz)$", "", Path(package_name).name, flags=re.I)
         step_name = lower.get("step_name") or f"{action}_{slug(name_base)}"
         source_path = lower.get("source_path") or lower.get("path") or f"{package_source_dir.rstrip('/')}/{package_name}"
+        source_path = validated_package_source_path(source_path)
         checksum_sha1, checksum_sha256 = validated_package_hashes(
             action,
             package_name,

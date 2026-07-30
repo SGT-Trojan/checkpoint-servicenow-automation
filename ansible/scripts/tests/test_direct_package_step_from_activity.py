@@ -116,6 +116,28 @@ class DirectOutcomeTests(unittest.TestCase):
         self.assertIn("clish -c", session.commands[0])
         self.assertIn("__RC=%s", session.commands[0])
 
+    def test_fatal_marker_cannot_be_canceled_by_tolerated_text(self) -> None:
+        session = OutcomeSession(
+            "Operation failed before completion\nNo errors in cleanup\n__RC=0\n"
+        )
+        with self.assertRaisesRegex(RuntimeError, "failure marker"):
+            direct.run_checked(
+                session,
+                "192.0.2.20",
+                "installer install synthetic.tgz",
+                60,
+            )
+
+    def test_zero_error_summary_is_not_a_fatal_marker(self) -> None:
+        for summary in ("Errors: 0", "Error: 0", "No errors", "0 errors"):
+            with self.subTest(summary=summary):
+                direct.run_checked(
+                    OutcomeSession(f"{summary}\nOperation completed successfully\n__RC=0\n"),
+                    "192.0.2.20",
+                    "show installer status all",
+                    60,
+                )
+
     def test_exact_package_presence_rejects_negative_and_lookalike_rows(self) -> None:
         package = "Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T76_FULL.tgz"
         present = self.fixture("package_still_installed.txt")

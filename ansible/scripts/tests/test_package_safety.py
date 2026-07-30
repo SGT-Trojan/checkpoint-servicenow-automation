@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -21,6 +22,7 @@ def load(name: str):
 
 candidates = load("generate_cdt_candidates_from_activity")
 postcheck = load("postcheck_gateways")
+PACKAGE_PLAN_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "package_plan"
 
 
 class PackageSafetyTests(unittest.TestCase):
@@ -32,13 +34,48 @@ class PackageSafetyTests(unittest.TestCase):
     def test_hash_format_is_validated_and_remove_does_not_require_hash(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid SHA1"):
             runner.package_steps_from_rows([{"package_name": "package.tgz", "action": "install", "sha1": "bad"}])
-        steps = runner.package_steps_from_rows([{"package_name": "Take 76", "action": "remove"}])
+        steps = runner.package_steps_from_rows([{"package_name": "package.tgz", "action": "remove"}])
         self.assertEqual(steps[0]["checksum_sha1"], "")
 
     def test_valid_sha256_is_normalized(self) -> None:
         value = "A" * 64
         steps = runner.package_steps_from_rows([{"package_name": "package.tgz", "action": "install", "sha256": value}])
         self.assertEqual(steps[0]["checksum_sha256"], value.lower())
+
+    def test_ticket_package_name_rejects_unsafe_characters(self) -> None:
+        fixture = json.loads((PACKAGE_PLAN_FIXTURES / "unsafe_fields.json").read_text())
+        for package_name in fixture["package_name"]:
+            with self.subTest(package_name=package_name), self.assertRaisesRegex(
+                ValueError, "package_name"
+            ):
+                runner.package_steps_from_rows(
+                    [{"package_name": package_name, "action": "remove"}]
+                )
+
+    def test_ticket_source_path_rejects_unsafe_characters_and_traversal(self) -> None:
+        fixture = json.loads((PACKAGE_PLAN_FIXTURES / "unsafe_fields.json").read_text())
+        for source_path in fixture["source_path"]:
+            with self.subTest(source_path=source_path), self.assertRaisesRegex(
+                ValueError, "source_path"
+            ):
+                runner.package_steps_from_rows(
+                    [{
+                        "package_name": "package.tgz",
+                        "source_path": source_path,
+                        "action": "remove",
+                    }]
+                )
+
+    def test_ticket_package_fields_accept_safe_values(self) -> None:
+        steps = runner.package_steps_from_rows([{
+            "package_name": "Check_Point-R82_JHF+T91_FULL.tgz",
+            "source_path": "/var/log/tmp/Check_Point-R82_JHF+T91_FULL.tgz",
+            "action": "remove",
+        }])
+        self.assertEqual(
+            steps[0]["source_path"],
+            "/var/log/tmp/Check_Point-R82_JHF+T91_FULL.tgz",
+        )
 
     def test_attachment_role_must_be_identifiable(self) -> None:
         context = {"attachments": [{"file_name": "input.csv", "local_path": "/tmp/input.csv"}]}
