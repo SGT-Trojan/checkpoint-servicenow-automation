@@ -1,79 +1,154 @@
-# CheckPoint FW Automation — End-to-End Walkthrough (Requester: Firewall Engineer)
+# Check Point Firewall Automation: Step-by-Step Walkthrough
 
-This sanitized walkthrough describes the implemented control flow. All names, addresses, records, and evidence references are illustrative.
+This page follows one ServiceNow request from submission to closure. Read
+[Start Here](START_HERE.md) first if the record names or Check Point terms are
+new to you.
 
-## Phase 0 — Request submission (Firewall Engineer)
+The names and addresses in the public version are examples.
 
-1. Firewall Engineer opens the Service Portal → Service Catalog → Check Point Firewall Automation → CheckPoint FW Maintenance Activity (the single catalog item; the old Patch/Upgrade items are retired).
-2. The engineer fills the simplified form:
-   - **Activity Type** — must explicitly pick one of three: Version Upgrade Activity / Software Patch Activity / Deployment Agent Install (no default).
-   - **Environment**, **ICAP Check Mode**, **Target Firewall IPs**, **MDS Host/IP**, **Current/Target Check Point Version**.
-   - **CPUSE Package** (mandatory) — downloads `CPUSE_Package_Template.csv` from the link under the field, fills `sequence_number, action (install/uninstall/upgrade), package_name, sha1, sha256, package_type, notes`, uploads it. JHF aliases (Take 91 / T91 / JHF_T91) are allowed; automation resolves them.
-   - **CPUSE Dependency Checklist** (optional) — `expected_state (Present/Not Present), package_name, notes`.
-   - **Preserve Original Active Member**, **Tester Validation Gate**, requested maintenance window, **Special Instructions**.
-   - The engineer does not choose an execution engine, staging method, package directory, CMA, or credentials — backend policy owns those (CDT for package execution, CPRID from MDS, `/var/log/tmp`, SSH under the hood for health checks).
-3. Order Now → REQ is created (e.g., REQ_EXAMPLE).
+## Phase 0 - Submit the request
 
-## Phase 1 — Intake (ServiceNow business rule, automatic, seconds)
+1. The firewall engineer opens `CheckPoint FW Maintenance Activity` in the
+   Service Catalog.
+2. In **Activity Type**, the engineer selects Version Upgrade, Software Patch,
+   or Deployment Agent Install.
+3. The engineer enters **Environment**, **Target Firewall IPs**, **MDS Host/IP**,
+   the current and target versions, the maintenance window, and the health-check
+   options.
+4. The engineer uploads the **CPUSE Package** CSV. It contains the action,
+   package name, package type, checksums, and notes. The **CPUSE Dependency
+   Checklist** CSV is optional.
+5. The engineer submits the request. ServiceNow creates a REQ and RITM.
 
-4. The RITM is created carrying all variables and the uploaded files.
-5. The intake BR (`create read`) fires once per open RITM (idempotent; never retro-fires on closed/legacy RITMs):
-   - Auto-approves the RITM (lab model) and writes a structured description tagged `[CHECKPOINT_AUTOMATION_INTAKE]` (activity, IPs, MDS, versions, ICAP/tester flags, attachment inventory, backend policy statements).
-   - Sets REQ/RITM short descriptions and summary notes.
-   - Creates the "Automated Check Point readiness validation - <activity>" SCTASK assigned to Firewall Deploy.
-6. No CHG exists yet — a change is only created for validated, actionable work.
+The requester does not choose CDT or Management API, a staging method, a CMA,
+or credentials. The current ServiceNow path uses CDT for package work.
 
-## Phase 2 — Automated readiness validation (readiness worker, picks up within 60s)
+## Phase 1 - Create the readiness task
 
-7. `snow-checkpoint-readiness-worker` polls, claims the SCTASK, downloads the RITM's CSV/XLSX attachments, parses package steps and dependency requirements, then runs read-only validation playbooks against the environment:
-   - Target discovery: MDS → CMA/domain, cluster object, member names, management/access IPs, policy package.
-   - Activity-plan validation, gateway precheck (one ACTIVE/one STANDBY, PNOTEs, monitored interfaces, ICAP if required), Deployment Agent readiness, package presence + checksum in `/var/log/tmp` on the MDS, per-step `requires_present`/`requires_absent` prerequisite checks with alias resolution.
-8. Pass → SCTASK closes Closed Complete with `u_checkpoint_readiness_status=ready`, `source=automated`, summary + evidence path; the same readiness fields are stamped on the RITM.
-9. Fail → SCTASK closes Closed Incomplete (`status=failed`) and a "Firewall Deploy manual readiness remediation - <task>" SCTASK is created (assigned to Firewall Deploy) carrying the failure, the exact check, and the evidence directory. The engineer remediates, sets readiness `ready`, closes Complete → flow continues. If instead they set `rejected`/`not_viable` or close Incomplete → the RITM is auto-closed incomplete and no CHG is ever created.
+1. A ServiceNow business rule reads the open RITM.
+2. It copies the request details into a structured description.
+3. It creates one `Automated Check Point readiness validation` SCTASK for the
+   Firewall Deploy group.
 
-## Phase 3 — Governed CHG creation (readiness-S business rule, automatic)
+No CHG exists yet. ServiceNow creates a change only after readiness passes.
 
-10. The ready closure triggers CHG creation (field-driven only; close-note text is audit, not logic):
-    - CHG carries the `[CHECKPOINT_AUTOMATION]` marker, parent RITM, CI resolved from target IPs to a firewall member CI (Network Device category), Firewall Deploy submitter/group, and implementation/test/backout plans.
-    - Two governed CTASKs are created: "Implementation - Check Point firewall automation workflow" (the automation driver and evidence trail) and "Tester validation gate - Check Point automation" (description states: automation pauses after member 1 + failover; Closed Complete authorizes member 2; Closed Incomplete keeps it blocked).
+## Phase 2 - Check readiness
 
-## Phase 4 — Change governance (Firewall Engineer / CAB)
+The readiness worker claims the SCTASK and downloads the attached files. It runs
+read-only checks for:
 
-11. Firewall Engineer drives the CHG through the normal change model: Assess (approvals requested) → Authorize (CAB approvals) → Scheduled → Implement. State-jumping is blocked by the platform.
-12. On entering Implement, ServiceNow's change model spawns its own default tasks; for automation CHGs these are relabeled "Change-model default: … (auto-managed, no action needed)" and left open (the automation closes them at the end — closing them early makes the model auto-advance the change, which caused the CHG_EXAMPLE incident).
+- the MDS, CMA, cluster, members, and policy;
+- one active and one standby cluster member;
+- ClusterXL health, PNOTEs, interfaces, and ICAP when required;
+- the Deployment Agent build;
+- package presence and checksums on the MDS;
+- package prerequisites; and
+- free space and rollback capacity.
 
-## Phase 5 — Execution (implementation worker, picks up within 60s of Implement)
+If every check passes, the worker sets readiness to `ready` and closes the
+SCTASK as Closed Complete.
 
-13. `snow-checkpoint-worker` finds the CHG (marker + Implement + approved), re-validates the full governance gate (marker, state, approval, Closed Complete readiness SCTASK with status `ready` on the parent RITM, open Implementation CTASK), and launches the runner. It will never double-launch (singleton lock + per-CHG state machine) and never auto-retries a failure.
-14. Runner phase sequence (each phase posts a note to the CHG; the mirror BR copies it to the Implementation CTASK; logs attach to the CTASK):
-    discovery → validate plan → precheck → DA readiness → cluster-state capture → baseline support capture → MDS package/checksum + air-gap gate → member 1: prerequisites → controlled CDT candidates (only the target member enabled) → guarded CDT execute → reboot/readiness monitor → failover to member 1 → tester gate pause.
+If a check fails, the worker closes the automated SCTASK as Closed Incomplete
+and creates one manual readiness SCTASK. A Firewall Deploy engineer then chooses
+one of two actions:
 
-    Deployment Agent Install is intentionally different: validate plan → precheck → DA readiness → MDS package/checksum + air-gap acknowledgement → prerequisites → direct `installer agent install` on all target members in one install-deployment-agent phase → DA readiness. It does not run baseline/final support capture, support diff, failover, tester gate, restore-original-active, or final JHF/package postcheck.
+- fix the problem, set readiness to `ready`, and close the task Complete; or
+- reject the request and close it Incomplete.
 
-    Version Upgrade Activity (major upgrade) adds the mixed-version phases to the rolling sequence: after member 1 completes it runs the mixed-version policy gate (`31_major_policy_gate.yml`) and turns MVC on (`32_major_mvc.yml`) before failover and the tester gate; after member 2 it runs the final policy install and turns MVC off, then continues with restore/final capture/diff/postcheck. Major upgrades require a two-member cluster — standalone targets are rejected at plan time.
+A rejected request closes without creating a CHG.
 
-## Phase 6 — Tester gate (human)
+## Phase 3 - Create the change
 
-15. The worker parks in `waiting_tester` and notes it on the CHG. The tester validates traffic, services, policy behavior, and ICAP on the upgraded member, then closes "Tester validation gate - Check Point automation" as Closed Complete. Only that task, closed Complete, opens the gate (suppressed/relabeled/auto-generated tasks cannot).
-16. The worker resumes from `second-member`: prerequisites → CDT → monitor → restore original active (if requested) → final support capture → support diff → final postcheck (JHF installs validated by take + health; removals by inventory absence; `.tar` vs `.tgz` identity tolerated).
+When readiness is `ready`, ServiceNow creates the CHG. It includes the request,
+target CI, implementation plan, test plan, and backout plan. It also creates:
 
-## Phase 7 — Failure branch (any phase)
+- `Implementation - Check Point firewall automation workflow`; and
+- `Tester validation gate - Check Point automation`.
 
-17. On any failure the worker creates "Engineer remediation required - Check Point automation at <phase>" with failed phase/playbook/step, log path, run directory, and resume instructions, with `u_checkpoint_resume_status=pending`. The CHG stays in Implement.
-18. The engineer remediates, sets Checkpoint Resume Status = approved on the CTASK (field on the form), closes it Complete → the worker resumes from the failed phase. Closing it Incomplete, or with rejected/not_viable, permanently blocks the change until deliberate manual intervention.
+The tester-task description says that the workflow pauses after failover to the
+first changed member. Only Closed Complete lets the second-member work start.
 
-## Phase 8 — Success bookkeeping (automatic)
+## Phase 4 - Approve and schedule the change
 
-19. On success the worker:
-    - Creates and closes "Final validation - Check Point post-implementation checks" (Closed Complete) with the postcheck outcome and evidence paths.
-    - Closes the Implementation CTASK Closed Complete with a completion summary.
-    - Closes the relabeled change-model default tasks so the model can advance its phase naturally.
-    - Moves the CHG to Review.
+The firewall engineer and CAB move the CHG through the normal change process:
+Assess, Authorize, Scheduled, and Implement. The platform blocks unsupported
+state jumps.
 
-## Phase 9 — Closure (Firewall Engineer / change management)
+When the CHG enters Implement, the change model may create default tasks. The
+automation relabels these tasks and leaves them open. Closing them early can
+make ServiceNow move the CHG to Review before the firewall work starts.
 
-20. Firewall Engineer (or change management) reviews and closes the CHG (close code successful); the RITM/REQ complete through the normal catalog flow. Durable evidence lives in `checkpoint-servicenow-automation/runs/<CHG>_*/` (activity plan, per-phase logs, support captures, diffs) plus the ServiceNow record trail: REQ → RITM (readiness fields) → readiness SCTASKs → CHG (approvals + phase notes) → Implementation/Tester/Final-validation CTASKs.
+## Phase 5 - Change the first member
 
-## What Firewall Engineer never has to provide
+The implementation worker starts only when the CHG has the automation marker,
+is approved, is in Implement, has passed readiness, and has one open
+implementation task. It checks these conditions again before launching the
+runner. It also prevents two runs for the same CHG.
 
-Credentials (worker environment now; CyberArk in production), execution engine choice, staging method, package source directory, CMA/domain/policy names, cluster/member objects, CDT candidate control — all discovered, policy-driven, or vault-owned.
+For a normal rolling JHF change, the runner then:
+
+1. finds the exact cluster and members;
+2. validates the activity plan;
+3. runs health and package checks;
+4. saves the original active member;
+5. captures baseline support data;
+6. changes the standby member;
+7. waits for its reboot and health checks;
+8. fails over traffic to that changed member; and
+9. pauses at the tester gate.
+
+A major upgrade adds mixed-version policy checks and turns MVC on before the
+failover. After both members are upgraded, it installs final policy and turns
+MVC off. Major upgrades require a two-member cluster.
+
+A Deployment Agent update uses a shorter path. It updates both members without
+failover or a tester gate, then checks the installed build on each member.
+
+## Phase 6 - Test the changed member
+
+The worker records `waiting_tester` and stops. A tester checks traffic, services,
+policy behavior, and ICAP on the changed member.
+
+The tester must close `Tester validation gate - Check Point automation` as
+Closed Complete. Closed Skipped or Closed Incomplete does not open the gate.
+A different task with a similar name also does not open it.
+
+After approval, the runner changes the second member. It then runs final health,
+package, support, and policy checks and restores the original active member when
+requested.
+
+## Phase 7 - Handle a failure
+
+If any phase fails, the runner stops and saves the failed phase, playbook, step,
+and log path. The CHG stays in Implement. The worker creates one
+`Engineer remediation required` CTASK with the failure details.
+
+The engineer fixes the cause, sets Checkpoint Resume Status to `approved`, and
+closes the task Complete. The worker restarts at the failed phase. One approval
+can start only one resume attempt.
+
+Closing the task Incomplete or setting the status to rejected or not viable
+keeps the change blocked. The worker never retries a failed change by itself.
+
+## Phase 8 - Record success
+
+After the final checks pass, the worker:
+
+1. creates and closes the final validation CTASK;
+2. closes the implementation CTASK;
+3. closes the relabeled default change-model tasks; and
+4. moves the CHG to Review.
+
+The CHG and CTASK notes contain phase results. Detailed plans, logs, support
+captures, diffs, and restart state stay in the protected run directory.
+
+## Phase 9 - Close the change
+
+The firewall engineer or change manager reviews the result and closes the CHG.
+The RITM and REQ then complete through the normal catalog flow.
+
+## What the Firewall Engineer Does Not Enter
+
+The request does not ask for passwords, an execution backend, a package staging
+method, a package directory, CMA or policy names, or CDT candidate settings.
+The automation finds these values or reads them from protected configuration.

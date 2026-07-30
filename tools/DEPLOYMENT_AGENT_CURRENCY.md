@@ -1,34 +1,48 @@
-# Keeping the CPUSE Deployment Agent Current (sk92449)
+# Check Point Deployment Agent Currency (sk92449)
 
-Answers "how can we be sure we are always running the latest Deployment Agent?" and documents the authenticated UserCenter download capability. Proven live 2026-07-12.
+Use `cpuse_da_fetch.py` to find the Recommended Deployment Agent build and
+download an approved offline package. Discovery is public. Package download
+requires an entitled Check Point UserCenter account.
 
-## The problem
+New to the project? Read [Start Here](../docs/START_HERE.md) first.
 
-The readiness worker checks that the installed DA build is adequate, but "adequate" needs a reference: what IS the latest recommended build, and is the offline package staged so an air-gapped gateway can be brought up to it? sk92449 is the authoritative source, and the actual package download is gated behind UserCenter authentication + entitlement.
+## Why This Tool Exists
 
-## What was proven
+The readiness worker can compare the installed build with a required build. It
+still needs a trusted source for the current recommendation. Check Point article
+`sk92449` provides that recommendation. UserCenter controls access to the package.
 
-Anonymous discovery and authenticated download both work from the automation host (the gateways stay air-gapped — only this host talks to the internet):
+## What the Test Showed
 
-- **Discovery (no credentials)**: sk92449 is scrapeable. It yields the recommended build and the per-architecture download IDs. Verified 2026-07-12: build **2771** (released 07 June 2026, "Recommended version"), with download IDs:
-  - `143249` — x86_64, "For versions R80.40/R81/R81.10/R81.20/R82" — **the general gateway package (lab CP-FW-A/B target)**
-  - `143248` — "For R82.10 version"
-  - `143250` — aarch64, "For 3900 series appliances"
-  - `97404` — build 2337 legacy, R80.30 and lower
-  Even the per-file download-detail page leaks metadata anonymously (filename, size) and the literal entitlement string `"User is not entitled to download this file"` — so "what is latest" is answerable for free; only the binary needs auth.
+Public discovery returned Recommended build **2771**, released 07 June 2026.
+It also returned these package IDs:
 
-- **Authenticated download (live-proven)**: logged into UserCenter as the provided account, entitlement passed, downloaded `DeploymentAgent_000002771_1.tgz` (24,051,568 bytes / 22.9 MB) and **verified both published checksums exactly**:
-  - SHA1 `49116e109e689d97c843c6fd349facc3617d262d`
-  - SHA256 `1d523680e027d5ddd2cc9396d4dfcfeade1923f70475eea8931107b94b914fb6`
-  The archive contains `CPda-00-00.aarch64.rpm` (confirming 143250 is the ARM build; the x86 lab package is 143249).
+| Download ID | Platform |
+|---|---|
+| `143249` | x86_64 for R80.40 through R82 |
+| `143248` | R82.10 |
+| `143250` | aarch64 for 3900-series appliances |
+| `97404` | Older build 2337 for R80.30 and earlier |
 
-## How the download actually works (the mechanism)
+An authenticated test downloaded package `143250` and verified both published
+hashes:
 
-1. `support.checkpoint.com/results/download/<id>` is a Next.js SPA. The "Log In" link starts an OAuth2 flow: `usercenter.checkpoint.com/oauth2/sign_in?rd=<return_url>`.
-2. Auth is **Auth0** (`login.checkpoint.com/u/login`), identifier-first: username -> Continue -> password -> Continue -> **TOTP** (6-digit, SHA1, 30s). Note the identifier page carries a hidden decoy password field — the tool targets the visible one.
-3. Back on the authenticated download page, clicking **Download** calls `iapi-services-ucs.checkpoint.com/api/support-center-mms/api/getDownloadPath/<id>` (needs an `x-access-token` session header, not just cookies), which returns a **time-limited signed URL** on `dl3.checkpoint.com/paid/<hash>/DeploymentAgent_<build>_<n>.tgz?HashKey=<epoch>_<sig>`. The browser streams that file. An invisible reCAPTCHA sits on the page but did not block the automated click.
+- SHA1 `49116e109e689d97c843c6fd349facc3617d262d`
+- SHA256 `1d523680e027d5ddd2cc9396d4dfcfeade1923f70475eea8931107b94b914fb6`
 
-Because the API needs a session-scoped token and the flow includes reCAPTCHA, the robust path drives the real browser (Playwright) end to end rather than reconstructing the API by hand.
+The downloaded archive contained an aarch64 RPM, which matches the package
+description. The x86_64 package uses ID `143249`.
+
+## How the Download Works
+
+1. The tool opens the Check Point download page.
+2. Playwright signs in through UserCenter with username, password, and TOTP.
+3. The page returns a short-lived `dl3.checkpoint.com` URL, and the tool downloads
+   the package and verifies both hashes.
+
+The download needs a session token and may show reCAPTCHA. The tool therefore
+uses Playwright to complete the normal browser flow. It does not try to rebuild
+the private download API.
 
 ## The tool: `cpuse_da_fetch.py`
 
@@ -41,24 +55,40 @@ python3 cpuse_da_fetch.py --arch x86_64
 #   or pin the ID:  --download-id 143249
 ```
 
-- Reads credentials from `~/.config/cpuc/usercenter.env` (0600): `CPUC_USERNAME`, `CPUC_PASSWORD`, `CPUC_TOTP_SECRET` (base32).
-- Scrapes the SK (with retry), selects the download ID by `--arch` (or explicit `--download-id`), logs in, reads the page's published SHA1/SHA256, downloads, and **fails hard on any checksum mismatch**.
-- Persists the authenticated browser session to `~/.config/cpuc/session_state.json` (0600) and reuses it, so scheduled runs do not re-login every time — **important**, because repeated rapid fresh logins trip UserCenter anti-automation throttling (observed during testing: the first logins succeeded cleanly, later back-to-back ones stalled on the OAuth redirect). Weekly cadence + session reuse avoids this entirely.
+- Reads `CPUC_USERNAME`, `CPUC_PASSWORD`, and `CPUC_TOTP_SECRET` from
+  `~/.config/cpuc/usercenter.env`. The file must use mode `0600`.
+- Selects a package by `--arch` or `--download-id`.
+- Stops on any checksum mismatch.
+- Saves the browser session in `~/.config/cpuc/session_state.json` with mode
+  `0600`. Reusing the session avoids repeated logins and UserCenter throttling.
 
-## Recommended operating model
+## Suggested Schedule
 
-1. **DA currency check (frequent, cheap)** — extend the readiness worker / a small timer: run `--discover-only`, compare the recommended build to each member's installed build (`show installer status build` via the existing SSH/CPRID helper). Surface on the readiness SCTASK: "DA current (2771)" vs "DA outdated: 2337 installed, 2771 available".
-2. **DA fetch + stage (weekly, or when the build changes)** — a systemd timer runs `cpuse_da_fetch.py --arch <estate arch>`; on a verified new build, `scp` the `.tgz` to the MDS `/var/log/tmp`, and (optionally) let CDT/CPRID distribute it. The readiness `07_validate_deployment_agent` check then confirms the offline package is present and current before any maintenance window.
-3. **Arch awareness** — pick 143249 (x86_64) for standard gateways, 143250 (aarch64) for 3900-series/ARM. The tool maps `--arch` from the SK descriptions; verify against `uname -m` on the target during discovery.
+1. Run `--discover-only` regularly and compare the Recommended build with
+   `show installer status build` on each member.
+2. Download again when the Recommended build changes. Copy the verified package
+   to the MDS only after approval.
+3. Check the target architecture with `uname -m`. Use package `143249` for
+   x86_64 gateways and `143250` for supported aarch64 appliances.
 
-## Security posture
+The readiness task should show whether the installed build is current. The
+`07_validate_deployment_agent` playbook can then confirm that the correct
+offline package is staged before maintenance starts.
 
-- Credentials live only in the 0600 env file and are never passed via argv, logged, or written to ServiceNow. Exploratory scripts that briefly embedded them during development were deleted; no plaintext secret remains in the repo or scratchpad.
-- **MFA reality**: this account uses TOTP, and the secret is stored so login can run unattended. This is a deliberate tradeoff for automation — production should use a dedicated integration/service account (ideally UserCenter API-based if Check Point exposes one for the estate), with the TOTP seed in the same vault/CyberArk path as the other automation credentials, and rotated on the normal schedule.
-- Only the automation host reaches the internet; gateways/MDS remain air-gapped, receiving the package by staged copy.
+## Security
 
-## Status / follow-ups
+- Keep UserCenter credentials in the mode `0600` environment file. Do not pass
+  them on the command line, write them to logs, or store them in ServiceNow.
+- Treat the TOTP seed like a password. Use a dedicated account, keep the seed in
+  the same secrets manager as the other automation credentials, and rotate it.
+- Only the automation host needs internet access. Copy the verified package to
+  the MDS through the approved staging process.
 
-- Capability: PROVEN (143250 downloaded + dual-checksum verified). The verified package is kept at `runs/da_packages/` as evidence.
-- The x86_64 (143249) live pull hit the anti-automation throttle during back-to-back test logins; the mechanism is identical to the proven path and will run cleanly on a normal (non-hammered) cadence with session reuse. Re-run `cpuse_da_fetch.py --arch x86_64` after the throttle window to stage the lab package.
-- Not yet wired into the worker: the currency-check comparison and the MDS staging copy are the remaining integration steps (design above).
+## Limits and Follow-up Work
+
+- The authenticated test covered package `143250`. It did not complete a live
+  download of the x86_64 package `143249`.
+- Back-to-back test logins triggered UserCenter throttling. Reuse the saved
+  session and allow normal time between downloads.
+- The readiness worker does not yet run the currency comparison or copy the
+  package to the MDS.

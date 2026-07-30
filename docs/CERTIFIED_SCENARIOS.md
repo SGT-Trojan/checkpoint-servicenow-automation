@@ -1,28 +1,27 @@
-# Live Validation and Certification Matrix
+# What We Tested
 
 Last updated: 2026-07-27
 
-## How to Read This Document
+## How to Read This Page
 
-This matrix records scenarios that were executed against a controlled
-Management Server, CMA, and two-member Check Point cluster. It is intended to
-show the evidence behind the implementation, not to replace Check Point's
-compatibility guidance or certify another environment.
+This page lists the maintenance runs completed on one lab Management Server,
+CMA, and two-member cluster. Use it to understand the tested starting point,
+result, and safety checks. It does not replace Check Point compatibility
+guidance, and it does not certify your environment.
 
-- **ServiceNow governed** means the catalog request, automated readiness,
-  approvals, native change states, implementation task, real tester gate,
-  remediation/resume behavior, final validation, and closure were exercised.
-- **Runner-level** means the firewall workflow was executed live from the
-  command line. Some runner certifications used a governance override and a
-  simulated tester gate; those are identified below.
-- **Independently reviewed** means retained evidence and implementation claims
-  were checked by an independent second reviewer without accessing the live systems.
-- **No separately installed JHF** means the previously installed Take 76
-  package had been removed. This describes installed package state; it does not
-  identify a product Take numbered 0 or imply that the base Gaia image contains
-  no fixes.
+- **ServiceNow and CDT** means the test started with a catalog request and used
+  real readiness, approval, change, tester, recovery, validation, and closure
+  steps.
+- **Command line** means the runner changed the lab cluster without starting
+  from a ServiceNow request. The table says when a lab override or simulated
+  tester gate was used.
+- **Independently reviewed** means a second reviewer checked the saved results
+  and the related code without connecting to the lab.
+- **No separately installed JHF** means Take 76 had been removed. It does not
+  identify a product Take numbered 0 or mean that the base Gaia image has no
+  fixes.
 
-## Certified Environment Anchors
+## Test Environment
 
 | Component | Validated value |
 |---|---|
@@ -33,10 +32,11 @@ compatibility guidance or certify another environment.
 | Deployment Agent | Build 2771, enabled, connected, current, and licensed during the final cycles |
 | Health gates | SIC, ClusterXL, PNOTEs, required and virtual interfaces, policy, CPUSE, capacity, licensing, and ICAP where stated |
 
-## Full ServiceNow-Governed CDT Certification
+## ServiceNow and CDT Tests
 
-All rows in this section completed through independent ServiceNow catalog
-chains on 2026-07-26. No governance override or simulated tester gate was used.
+These tests ran through ServiceNow on 2026-07-26. They used the real readiness,
+approval, change, tester, recovery, and closure steps. No lab override or simulated
+tester gate was used.
 
 | Activity | Starting state | Ending state | Live controls exercised | Result |
 |---|---|---|---|---|
@@ -44,18 +44,15 @@ chains on 2026-07-26. No governance override or simulated tester gate was used.
 | JHF uninstall | R81.20 build 634, Take 76 | R81.20 build 634, no separately installed JHF on both members | `Take 76` alias resolution through CPRID/CPInstLog, guarded rolling removal, real reboots, tester gate, final validation, closure | Passed; independently reviewed |
 | Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, embedded Take 60 on both members | Mixed-version policy gate, MVC on/off, rolling upgrade, controlled failover, real tester gate, SSH-host-key remediation tasks, phase-specific resume, final policy and closure | Passed; independently reviewed |
 
-The governed major-upgrade evidence proved version, Take, policy, ClusterXL,
-PNOTEs, interfaces, remediation/resume, and closure. Its generated final
-postcheck recorded ICAP as skipped because of a then-existing propagation
-defect. ICAP was observed separately, and the propagation defect was later
-fixed; that original evidence set is not retroactively described as proving
-final governed ICAP.
+The ServiceNow major-upgrade test checked the version, Take, policy, ClusterXL,
+PNOTEs, interfaces, recovery path, and closure. Its final report marked ICAP as
+skipped because of a bug that was fixed later. ICAP passed a separate check, but
+we do not claim that the original final report tested it.
 
-## Runner-Level CDT Certification
+## Command-Line CDT Tests
 
-These live runs on 2026-07-26 restored the same R81.20 baseline and exercised the
-firewall workflow before the full ServiceNow certification. They used a lab
-governance override and simulated tester gates.
+These tests ran from the command line on 2026-07-26. They restored the same
+R81.20 baseline and used a lab override and simulated tester gates.
 
 | Activity | Starting state | Ending state | Result |
 |---|---|---|---|
@@ -63,21 +60,21 @@ governance override and simulated tester gates.
 | Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF on both members | Passed; authoritative CPInstLog identity resolution and rolling CDT removal; independently reviewed |
 | Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | Passed; MVC, policy, failover, support diff, ownership restoration, ICAP and postcheck; independently reviewed |
 
-A later runner-level CDT cycle on 2026-07-27 discovered R82 Take 107 as the
-current Recommended Take, downloaded and verified the 2.49 GB package, staged it
-to the MDS, and installed it one standby member at a time:
+A later command-line test on 2026-07-27 found R82 Take 107 as Recommended. It
+downloaded and checked the 2.49 GB package, copied it to the MDS, and installed
+it on one standby member at a time:
 
 | Activity | Starting state | Ending state | Result |
 |---|---|---|---|
 | Recommended JHF install | R82 build 777, Take 60 | R82 build 777, Take 107 on both members | Passed with real reboots, controlled failover, policy and strict health checks; independently reviewed |
 
-## Runner-Level Management API Certification
+## Command-Line Management API Tests
 
-The isolated Management API backend was live-tested on 2026-07-27. It was not
-selected by the ServiceNow catalog, and no successful API run invoked CDT.
-See [CDT and Management API deployment](CDT_AND_MANAGEMENT_API.md) for the
-command, transport, cluster-strategy, and script-API boundaries.
-These runs used a lab governance override and simulated tester gate.
+The Management API backend was tested from the command line on 2026-07-27.
+ServiceNow did not select this backend, and the API runs did not call CDT. These
+tests used a lab override and simulated tester gate. See [CDT and Management API
+deployment](CDT_AND_MANAGEMENT_API.md) for the commands and the differences
+between the two backends.
 
 | Activity | Starting state | Ending state | Execution path | Result |
 |---|---|---|---|---|
@@ -85,31 +82,26 @@ These runs used a lab governance override and simulated tester gate.
 | Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF | API inventory and CPRID/CPInstLog identity resolution, then guarded direct CPUSE member removal | Passed; independently reviewed; explicitly not an API-only uninstall claim |
 | Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | API package execution plus mixed-version policy, MVC, explicit failover, final policy, restoration, and postcheck gates | Passed; independently reviewed |
 
-The tested API rejected the per-member semantics required for safe rolling
-cluster uninstall. The direct CPUSE fallback is deliberate, visible in the
-workflow, and does not invoke CDT.
+The tested API could not safely remove the package one member at a time. The
+workflow therefore uses its clearly marked direct CPUSE fallback. That fallback
+does not call CDT.
 
-## Earlier Governed Functional Coverage
+## Earlier ServiceNow Tests
 
-Before the principal independently reviewed July 26 certification cycle, a
-ServiceNow-governed functional E2E cycle completed on 2026-07-13. It exercised
-an R82 Take 91 software-patch install, the Deployment Agent activity, and an
-R81.20-to-R82 CDT major upgrade through catalog, readiness, change, task, and
-closure handling. The July 26 rows are the principal certification matrix
-because their exact baseline states and retained evidence received the later
-independent certification review; the earlier cycle remains relevant functional
-coverage rather than an omitted claim.
+An earlier ServiceNow test ran on 2026-07-13. It covered an R82 Take 91 patch
+install, the Deployment Agent activity, and an R81.20-to-R82 CDT upgrade. The
+July 26 tests are the main results because their starting states and saved
+evidence received the later independent review.
 
-## Deployment Agent Functional Coverage
+## Deployment Agent Test
 
-The 2026-07-13 ServiceNow-driven Deployment Agent activity used the dedicated
-short workflow. Both gateways already resolved to build 2771, so this proves
-idempotent package/readiness handling and dual-member execution behavior; it is
-not evidence of an upgrade from every older Agent build.
+The 2026-07-13 ServiceNow test used the short Deployment Agent workflow. Both
+gateways already had build 2771, so the workflow correctly made no change. This
+does not prove upgrades from older Agent builds.
 
-## Explicitly Not Certified
+## What We Have Not Tested
 
-The following must not be inferred from the successful rows:
+Do not assume that the successful rows also cover these cases:
 
 - R81.20 Take 76 directly to R82 Take 60. The certified major upgrade began
   after Take 76 removal, from R81.20 build 634 with no separately installed JHF.
@@ -124,9 +116,9 @@ The following must not be inferred from the successful rows:
 - Every historical or Latest JHF. Package discovery does not imply installation
   approval or compatibility.
 
-## Certification Required for a New Combination
+## Before Adding a New Combination
 
-Before adding another release, Take, topology, or backend to this matrix:
+Before adding another release, Take, cluster type, or backend to this page:
 
 1. Verify vendor critical information, supported upgrade path, package identity,
    checksums, Deployment Agent policy, licensing, and rollback capacity.
@@ -140,6 +132,6 @@ Before adding another release, Take, topology, or backend to this matrix:
 6. Add the exact starting state, ending state, backend, governance mode, limits,
    date, and review status to this document.
 
-Raw certification evidence is intentionally excluded from this public
-repository. The matrix records bounded outcomes without distributing private
-infrastructure data or vendor package binaries.
+Raw test evidence is not public because it contains environment details. This
+page records the result and its limits without publishing private data or vendor
+packages.

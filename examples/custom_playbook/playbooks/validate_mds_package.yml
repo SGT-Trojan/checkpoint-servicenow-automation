@@ -1,0 +1,19 @@
+---
+- name: Check the example plan before connecting
+  hosts: localhost
+  gather_facts: false
+  vars:
+    example_plan: "{{ lookup('file', example_plan_file) | from_json }}"
+  tasks:
+    - name: Require a real package identity and published checksum
+      ansible.builtin.assert:
+        that:
+          - example_plan.package_steps | length > 0
+          - example_plan.package_steps[0].package_name is not search('REPLACE_WITH')
+          - >-
+            (example_plan.package_steps[0].checksum_sha1 | default('') | length == 40) or
+            (example_plan.package_steps[0].checksum_sha256 | default('') | length == 64)
+        fail_msg: Replace the package identity and published checksum before MDS validation.
+- import_playbook: ../../../ansible/playbooks/06_validate_mds_package.yml
+  vars:
+    activity_plan_file: "{{ example_plan_file }}"

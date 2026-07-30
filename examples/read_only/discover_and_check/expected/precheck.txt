@@ -1,0 +1,4 @@
+SYNTHETIC EXAMPLE OUTPUT - NOT LAB EVIDENCE
+192.0.2.20 state=ACTIVE pnotes=ok interfaces=ok icap=ok
+192.0.2.21 state=STANDBY pnotes=ok interfaces=ok icap=ok
+Cluster readiness: passed

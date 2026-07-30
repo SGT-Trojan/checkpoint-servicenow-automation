@@ -1,26 +1,32 @@
 # Check Point JHF Currency and Download
 
-`cpuse_jhf_fetch.py` discovers Check Point Jumbo Hotfix Accumulator releases and securely downloads CPUSE offline packages. It does not stage or install packages.
+Use `cpuse_jhf_fetch.py` to list or download Check Point JHF packages. The tool
+checks package metadata and hashes. It does not copy a package to the MDS and
+does not install anything.
 
-## Selection policy
+New to JHF terms or the maintenance flow? Read [Start Here](../docs/START_HERE.md).
+
+## Which Take Does It Select?
 
 The official catalog can publish two different candidates:
 
-- `recommended` is the default and is suitable for unattended currency checks. A package becoming Recommended indicates that Check Point has promoted that Take for broad use.
-- `latest` must be selected explicitly. A Latest Take can be newer than Recommended but has not yet received the Recommended designation.
-- `archived-recommended` identifies a Take that Check Point previously promoted to Recommended and now lists in `sk174185`. It is available only through explicit Take or menu selection.
+- `recommended` is the default. Check Point currently marks this Take as Recommended.
+- `latest` must be selected explicitly. It may be newer, but Check Point has not marked it Recommended.
+- `archived-recommended` was Recommended in the past. Select it by Take number or from the menu.
 
-Do not automatically install Latest in production. Discovery and download can be scheduled; installation must still pass change governance, critical-information review, compatibility/readiness checks, checksum validation, rollback preparation, and cluster gates.
+Do not automatically install Latest in production. Finding or downloading a
+package is not approval to install it. The normal change, compatibility,
+readiness, checksum, rollback, and cluster checks still apply.
 
-Older Takes are not currency recommendations. Select one only for a controlled compatibility, rollback, reproduction, or lab requirement. The archive does not promise every historical or non-Recommended Take, and this tool does not use an older package to automate a downgrade.
+An older Take is not a current recommendation. Select one only for a known
+compatibility, rollback, reproduction, or lab need. The archive may not contain
+every old Take. The tool never uses an older package to start a downgrade.
 
-Some older Support Center records have a stale `versionDisplayName` even though
-the official archive section, display title, and canonical filename identify the
-requested release. This mismatch is tolerated only for an archived-Recommended
-record when all three authoritative identifiers agree on the exact release and
-Take and both published hashes are present. The menu prints a notice containing
-the stale label. Current Recommended and Latest records still require an exact
-metadata release match.
+Some older archive records show the wrong release label. The tool accepts this
+only for a previously Recommended Take and only when the archive section, title,
+filename, Take, and both hashes identify the requested package. The menu shows
+the stale label in a notice. Current Recommended and Latest records must have
+an exact release match.
 
 ## Requirements
 
@@ -30,7 +36,8 @@ metadata release match.
 
 Public JHF records need no UserCenter password. The tool accepts no credentials.
 
-Python's standard proxy environment variables are honored, including `HTTPS_PROXY`, `HTTP_PROXY`, and `NO_PROXY`. A TLS-inspecting proxy's issuing CA must be trusted by the host Python installation.
+The tool uses `HTTPS_PROXY`, `HTTP_PROXY`, and `NO_PROXY` when they are set. If
+a proxy inspects TLS, Python must trust the CA that signed the proxy certificate.
 
 ## Commands
 
@@ -52,15 +59,17 @@ Open a numbered selection menu:
 python3 tools/cpuse_jhf_fetch.py --version R82 --menu
 ```
 
-After selection, the menu validates the package metadata, prints a concise
-summary, and asks whether to download it. Answering `y` downloads into
-`./jhf_packages` by default; use `--dest` to choose another directory. Answering
-`n` retains only the validated selection result. `Ctrl+C` exits cleanly with
-status 130. Use `--menu --download` when the menu choice itself is the only
-confirmation required.
+After you choose a package, the menu checks its metadata and shows a summary.
+It then asks whether to download:
 
-Inspect or download an exact archived Take non-interactively. `--take` alone
-prints JSON metadata; it downloads only when combined with `--download`:
+- `y` downloads to `./jhf_packages`, or to the directory set by `--dest`;
+- `n` prints the checked selection without downloading; and
+- `Ctrl+C` exits with status 130 and no traceback.
+
+Use `--menu --download` when choosing the menu item is enough confirmation.
+
+For scripts and scheduled jobs, select a Take without the menu. `--take` prints
+JSON only. Add `--download` to download the package:
 
 ```bash
 python3 tools/cpuse_jhf_fetch.py --version R82 --take 91
@@ -100,7 +109,7 @@ python3 tools/cpuse_jhf_fetch.py --version R82 --policy latest --download --dest
 
 A completed file is reused only when both its SHA1 and SHA256 match official metadata. An interrupted transfer remains as `<filename>.part`; the next run requests the remaining range. A server that does not honor the range causes a clean full rewrite of the partial file. The final artifact is mode `0600` and the destination directory is mode `0700`.
 
-## Data and decisions
+## How It Works
 
 The tool performs these steps:
 
@@ -117,9 +126,9 @@ The tool performs these steps:
 
 Discovery fails closed when Recommended is absent, a requested policy is unavailable, metadata is malformed or inconsistent, the signed URL is untrusted, or network access fails. Download fails closed on any checksum mismatch.
 
-## Automation pattern
+## Using It in Scheduled Automation
 
-A production scheduler can run discovery daily and retain its JSON result. Recommended operation is:
+A scheduler can run the read-only check each day and save the JSON result:
 
 1. Inventory each managed gateway's Gaia release and installed JHF Take.
 2. Run this tool once per distinct release with `--policy recommended`.

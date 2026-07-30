@@ -1,0 +1,2 @@
+sequence_number,action,package_name,sha256,package_type,notes
+1,install,REPLACE_WITH_APPROVED_PACKAGE.tgz,REPLACE_WITH_PUBLISHED_64_HEX_SHA256,jhf,Expected to fail closed

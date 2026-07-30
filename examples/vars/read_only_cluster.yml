@@ -1,5 +1,0 @@
----
-chg_number: MANUAL_READ_ONLY
-member_a_ip: "192.0.2.20"
-member_b_ip: "192.0.2.21"
-icap_mode: required

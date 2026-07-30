@@ -1,0 +1,21 @@
+---
+- import_playbook: ../../../ansible/playbooks/01_validate_activity_plan.yml
+  vars: &plan
+    activity_plan_file: "{{ example_plan_file }}"
+    activity_plan: "{{ lookup('file', example_plan_file) | from_json }}"
+    step: remove_previous_jhf
+    phase: first-member
+- import_playbook: ../../../ansible/playbooks/00_precheck.yml
+- import_playbook: ../../../ansible/playbooks/07_validate_deployment_agent.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/11_capture_cluster_state.yml
+- import_playbook: ../../../ansible/playbooks/08_validate_package_prerequisites.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/10_cdt_generate_candidates.yml
+  vars: *plan
+- import_playbook: ../../../ansible/playbooks/20_cdt_execute_guarded.yml
+  vars:
+    <<: *plan
+    checkpoint_execute_upgrade: "{{ allow_cdt_changes | default(false) }}"
+- import_playbook: ../../../ansible/playbooks/22_monitor_gateways.yml
+- import_playbook: ../../../ansible/playbooks/23_failover_to_member.yml
