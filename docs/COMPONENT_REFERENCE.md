@@ -129,7 +129,7 @@ Each `members` entry accepts these keys:
 |---|---|---|
 | `order` | Recommended | Integer execution order |
 | `name` | Yes | Unique identifier passed as `--step`; use letters, numbers, `.`, `_`, or `-` |
-| `action` | Yes | `install`, `upgrade`, `remove`, or `uninstall` |
+| `action` | Recommended | `install`, `upgrade`, `remove`, or `uninstall`; blank defaults to `install`, while any unknown non-empty value is rejected |
 | `package_name` | Yes | Approved package filename. Ticket CSV values may use letters, numbers, `.`, `_`, `+`, or `-`; whitespace and shell/clish metacharacters are rejected |
 | `package_type` | Recommended | `jhf`, `blink`, `deployment_agent`, or the locally supported wrapper type |
 | `source_path` | Install/upgrade | Absolute package path on MDS. Ticket CSV values use the same filename characters plus `/`; relative paths and `.` or `..` segments are rejected |

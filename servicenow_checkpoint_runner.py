@@ -22,12 +22,16 @@ import urllib.parse
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent
 ANSIBLE_DIR = ROOT / "ansible"
 RUNS_DIR = ROOT / "runs"
+ALLOWED_TICKET_ATTACHMENT_SUFFIXES = {".csv", ".xlsx"}
+SERVICENOW_SYS_ID_RE = re.compile(r"[0-9a-fA-F]{32}")
+
+
 def default_ansible_playbook() -> Path:
     configured = os.environ.get("CHECKPOINT_ANSIBLE_PLAYBOOK", "").strip()
     if configured:
@@ -385,30 +389,90 @@ def xlsx_shared_strings(zf: zipfile.ZipFile) -> list[str]:
     return strings
 
 
+def xlsx_first_sheet_path(zf: zipfile.ZipFile) -> str:
+    spreadsheet_ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    document_rel_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    package_rel_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
+    workbook = ET.fromstring(zf.read("xl/workbook.xml"))
+    first_sheet = workbook.find(f".//{{{spreadsheet_ns}}}sheets/{{{spreadsheet_ns}}}sheet")
+    if first_sheet is None:
+        raise ValueError("XLSX workbook has no worksheets")
+    relationship_id = first_sheet.attrib.get(f"{{{document_rel_ns}}}id", "")
+    if not relationship_id:
+        raise ValueError("XLSX first worksheet has no relationship id")
+
+    relationships = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+    relationship = next(
+        (
+            row
+            for row in relationships.findall(f"{{{package_rel_ns}}}Relationship")
+            if row.attrib.get("Id") == relationship_id
+        ),
+        None,
+    )
+    if relationship is None:
+        raise ValueError(f"XLSX worksheet relationship {relationship_id!r} was not found")
+    if relationship.attrib.get("TargetMode", "").lower() == "external":
+        raise ValueError("XLSX worksheet relationship must not be external")
+    if not relationship.attrib.get("Type", "").endswith("/worksheet"):
+        raise ValueError("XLSX first sheet relationship is not a worksheet")
+
+    target = relationship.attrib.get("Target", "").replace("\\", "/").lstrip("/")
+    if not target:
+        raise ValueError("XLSX worksheet relationship has no target")
+    relative = PurePosixPath(target)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"unsafe XLSX worksheet target: {target!r}")
+    path = relative if relative.parts[:1] == ("xl",) else PurePosixPath("xl") / relative
+    return path.as_posix()
+
+
+def xlsx_column_index(reference: str) -> int:
+    match = re.fullmatch(r"([A-Z]+)[1-9][0-9]*", reference.upper())
+    if not match:
+        raise ValueError(f"invalid XLSX cell reference: {reference!r}")
+    index = 0
+    for char in match.group(1):
+        index = index * 26 + ord(char) - ord("A") + 1
+    index -= 1
+    if index >= 16384:
+        raise ValueError(f"XLSX cell reference exceeds column XFD: {reference!r}")
+    return index
+
+
+def xlsx_cell_value(cell: ET.Element, shared: list[str], namespace: str) -> str:
+    cell_type = cell.attrib.get("t", "")
+    if cell_type == "inlineStr":
+        return "".join(node.text or "" for node in cell.findall(f".//{{{namespace}}}t"))
+    value = cell.find(f"{{{namespace}}}v")
+    raw = value.text or "" if value is not None else ""
+    if cell_type == "s":
+        if not raw.isdigit() or int(raw) >= len(shared):
+            raise ValueError(f"invalid XLSX shared-string index: {raw!r}")
+        return shared[int(raw)]
+    return raw
+
+
 def parse_xlsx_bytes(data: bytes) -> list[dict[str, str]]:
-    zf = zipfile.ZipFile(io.BytesIO(data))
-    shared = xlsx_shared_strings(zf)
-    sheet_name = "xl/worksheets/sheet1.xml"
-    root = ET.fromstring(zf.read(sheet_name))
-    ns = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    rows: list[list[str]] = []
-    for row in root.findall(".//a:sheetData/a:row", ns):
-        vals = []
-        for c in row.findall("a:c", ns):
-            typ = c.attrib.get("t")
-            v = c.find("a:v", ns)
-            raw = v.text if v is not None else ""
-            if typ == "s" and raw.isdigit():
-                vals.append(shared[int(raw)] if int(raw) < len(shared) else "")
-            else:
-                vals.append(raw or "")
-        rows.append(vals)
+    namespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        shared = xlsx_shared_strings(zf)
+        root = ET.fromstring(zf.read(xlsx_first_sheet_path(zf)))
+    rows: list[dict[int, str]] = []
+    for row in root.findall(f".//{{{namespace}}}sheetData/{{{namespace}}}row"):
+        values: dict[int, str] = {}
+        for cell in row.findall(f"{{{namespace}}}c"):
+            column = xlsx_column_index(cell.attrib.get("r", ""))
+            if column in values:
+                raise ValueError(f"duplicate XLSX cell column in one row: {cell.attrib.get('r')!r}")
+            values[column] = xlsx_cell_value(cell, shared, namespace)
+        rows.append(values)
     if not rows:
         return []
-    headers = [h.strip() for h in rows[0]]
+    headers = {column: value.strip() for column, value in rows[0].items() if value.strip()}
     out = []
     for row in rows[1:]:
-        item = {headers[i]: (row[i].strip() if i < len(row) else "") for i in range(len(headers)) if headers[i]}
+        item = {header: row.get(column, "").strip() for column, header in headers.items()}
         if any(item.values()):
             out.append(item)
     return out
@@ -439,12 +503,16 @@ def infer_package_type(name: str, explicit: str = "") -> str:
 
 
 def normalize_action(value: str) -> str:
-    v = (value or "install").strip().lower()
+    v = (value or "").strip().lower()
+    if not v:
+        return "install"
+    if v in {"install", "installation"}:
+        return "install"
     if v in {"remove", "removal", "uninstall", "delete"}:
         return "remove"
     if v in {"upgrade", "update"}:
         return "upgrade"
-    return "install"
+    raise ValueError(f"unsupported package action {value!r}")
 
 
 def validated_package_hashes(
@@ -577,14 +645,60 @@ def service_now_context(sn: ServiceNowClient, chg_number: str, chg_sys_id: str =
     }
 
 
+def attachment_destination(out_dir: Path, attachment: dict[str, Any]) -> Path:
+    original_name = str(attachment.get("file_name") or "")
+    if (
+        not original_name
+        or original_name != original_name.strip()
+        or original_name != Path(original_name).name
+        or "/" in original_name
+        or "\\" in original_name
+        or any(ord(char) < 32 for char in original_name)
+    ):
+        raise ValueError(f"unsafe or empty ServiceNow attachment filename: {original_name!r}")
+
+    suffix = Path(original_name).suffix.lower()
+    if suffix not in ALLOWED_TICKET_ATTACHMENT_SUFFIXES:
+        raise ValueError(
+            f"unsupported ServiceNow attachment extension {suffix or '<none>'!r}; "
+            "only .csv and .xlsx are accepted"
+        )
+
+    sys_id = str(attachment.get("sys_id") or "")
+    if not SERVICENOW_SYS_ID_RE.fullmatch(sys_id):
+        raise ValueError(f"invalid ServiceNow attachment sys_id: {sys_id!r}")
+
+    out_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if out_dir.is_symlink():
+        raise RuntimeError(f"attachment directory must not be a symlink: {out_dir}")
+    root = out_dir.resolve(strict=True)
+    destination = root / f"{sys_id.lower()}{suffix}"
+    if destination.is_symlink():
+        raise RuntimeError(f"attachment destination must not be a symlink: {destination}")
+    resolved = destination.resolve(strict=False)
+    if resolved.parent != root:
+        raise RuntimeError(f"attachment destination escapes storage directory: {destination}")
+    return destination
+
+
+def write_attachment_bytes(destination: Path, data: bytes) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(destination, flags, 0o600)
+    except OSError as exc:
+        raise RuntimeError(f"cannot safely open attachment destination {destination}: {exc}") from exc
+    with os.fdopen(fd, "wb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(data)
+
+
 def download_context_attachments(sn: ServiceNowClient, context: dict[str, Any], workdir: Path) -> None:
     for att in context.get("attachments", []):
         if att.get("local_path"):
             continue
+        out = attachment_destination(workdir / "attachments", att)
         data = sn.attachment_bytes(att["sys_id"])
-        out = workdir / "attachments" / att["file_name"]
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(data)
+        write_attachment_bytes(out, data)
         att["local_path"] = str(out)
 
 

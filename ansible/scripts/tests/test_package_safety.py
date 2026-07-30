@@ -31,6 +31,21 @@ class PackageSafetyTests(unittest.TestCase):
             with self.subTest(action=action), self.assertRaisesRegex(ValueError, "checksum"):
                 runner.package_steps_from_rows([{"package_name": "package.tgz", "action": action}])
 
+    def test_unknown_nonempty_action_fails_before_plan_construction(self) -> None:
+        for action in ("unistall", "delete-package", "arbitrary"):
+            with self.subTest(action=action), self.assertRaisesRegex(
+                ValueError, "unsupported package action"
+            ):
+                runner.package_steps_from_rows([{
+                    "package_name": "package.tgz",
+                    "action": action,
+                    "sha256": "a" * 64,
+                }])
+
+    def test_blank_action_keeps_documented_install_default(self) -> None:
+        steps = runner.package_steps_from_rows([{"package_name": "package.tgz", "sha256": "a" * 64}])
+        self.assertEqual(steps[0]["action"], "install")
+
     def test_hash_format_is_validated_and_remove_does_not_require_hash(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid SHA1"):
             runner.package_steps_from_rows([{"package_name": "package.tgz", "action": "install", "sha1": "bad"}])

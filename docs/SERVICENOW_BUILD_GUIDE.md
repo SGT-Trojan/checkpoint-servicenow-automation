@@ -478,6 +478,11 @@ Restart=always
 RestartSec=15
 User=checkpoint-auto
 Group=checkpoint-auto
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=read-only
+ReadWritePaths=/opt/checkpoint-automation/runs
 
 [Install]
 WantedBy=multi-user.target
@@ -776,10 +781,18 @@ sequence_number,action,package_name,sha1,sha256,package_type,notes
 2,install,Check_Point_R82_jumbo_hf_main_Bundle_T91_FULL.tar,,<sha256>,jhf,Install Take 91
 ```
 
-- `action`: install / upgrade / uninstall (aliases remove/removal/delete accepted).
+- `action`: install / upgrade / uninstall (aliases remove/removal/delete accepted). A blank value keeps the install default; any other value is rejected rather than treated as an install.
 - `package_type`: `jhf` / `wrapper` / `blink` / `deployment_agent` / `other`; if omitted it is inferred (deployment+agent in the name → `deployment_agent`).
 - `sha1`/`sha256`: strongly recommended; enforced whenever declared. Source path defaults to `/var/log/tmp/<package_name>` on the MDS.
 - Steps execute in `sequence_number` order per member.
+
+Uploaded ticket files must be `.csv` or `.xlsx`. The workers reject empty,
+absolute, traversal-shaped, and unsupported filenames before download. They
+store accepted files as `<attachment_sys_id>.csv` or `.xlsx` under the run's
+attachment directory; the original filename is metadata used only to identify
+the package or dependency role. XLSX parsing follows the workbook relationship
+for the first sheet and uses cell coordinates, so omitted or reordered cells do
+not shift values into another column.
 
 ### 13.2 CPUSE Dependency Checklist CSV/XLSX (`cpuse_dependency_upload`, optional)
 
