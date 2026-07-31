@@ -1,0 +1,2 @@
+sequence_number,action,package_name,package_type,sha1,sha256,reboot_expected,notes
+1,install,EXAMPLE_R82_JHF_TXX_FULL.tar,jhf,<APPROVED_SHA1>,<APPROVED_SHA256>,true,Placeholder only - replace in a protected working copy

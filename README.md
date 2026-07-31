@@ -10,7 +10,7 @@
   <img src="docs/diagrams/project-metadata-badges.svg" width="396" alt="Apache-2.0 license; Python 3.10 or later; Ansible Core 2.16 through 2.21">
 </a>
 
-[Start here](docs/START_HERE.md) | [Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Components](docs/COMPONENT_REFERENCE.md) | [Tested scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow setup](docs/SERVICENOW_BUILD_GUIDE.md) | [Security](SECURITY.md)
+[Start here](docs/START_HERE.md) | [Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Components](docs/COMPONENT_REFERENCE.md) | [Tested scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow setup](docs/SERVICENOW_BUILD_GUIDE.md) | [Ticket example](docs/SERVICENOW_TICKET_EXAMPLE.md) | [Security](SECURITY.md)
 
 </div>
 
@@ -119,8 +119,10 @@ hashes. Choosing a package does not install it.
 | Run directly from a controlled automation host | [Architecture and engineering guide](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) |
 | Choose between CDT and Management API deployment | [CDT and Management API deployment](docs/CDT_AND_MANAGEMENT_API.md) |
 | Follow copy-ready helper and playbook scenarios | [Practical examples](examples/README.md) |
+| Run the complete workflow without ServiceNow | [Runner CLI walkthrough](examples/runner_cli/README.md) |
 | Reuse individual scripts or playbooks | [Component and integration reference](docs/COMPONENT_REFERENCE.md) |
 | Reproduce the full ServiceNow-governed implementation | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) |
+| Start from sanitized ticket-shaped artifacts | [Governed ticket example](docs/SERVICENOW_TICKET_EXAMPLE.md) |
 | Understand the request-to-completion lifecycle | [Workflow walkthrough](docs/WORKFLOW_WALKTHROUGH.md) |
 | Review exactly which versions and paths were exercised live | [Certified scenarios](docs/CERTIFIED_SCENARIOS.md) |
 | Inventory installed patches across managed gateways | [Patch inventory guide](tools/CHECKPOINT_PATCH_INVENTORY.md) |

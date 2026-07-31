@@ -1,0 +1,21 @@
+SYNTHETIC OUTPUT SHAPE - NOT CAPTURED FROM A FIREWALL
+
+PLAY [Validate activity plan - MANUAL_TEST_NET_PATCH]
+...
+PLAY [Execute package step on first member]
+...
+PLAY [ClusterXL failover - MANUAL_TEST_NET_PATCH]
+...
+PLAY RECAP
+localhost                  : ok=<count> changed=<count> unreachable=0 failed=0
+
+STOP: tester gate waiting at approve-testers. Re-run with --simulate-gates or --start-at second-member after approval.
+
+Shell return code: 20
+
+Expected state at this point:
+- The originally non-active member has completed the package step.
+- Traffic has failed over to the updated member.
+- The second member has not started its package step.
+- ansible/reports/cluster_initial_state_MANUAL_TEST_NET_PATCH.json still records the original roles.
+- A human tester must validate and explicitly approve the resume.

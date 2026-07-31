@@ -1,0 +1,25 @@
+SYNTHETIC OUTPUT SHAPE - NOT CAPTURED FROM A FIREWALL
+
+PLAY [Discover Check Point targets]
+...
+PLAY [Check package prerequisites on second member]
+...
+PLAY [Execute package step on second member]
+...
+PLAY [Restore original active member]
+...
+PLAY [Run final postcheck]
+...
+PLAY RECAP
+localhost                  : ok=<count> changed=<count> unreachable=0 failed=0
+
+{
+  "status": "completed",
+  "chg_number": "MANUAL_TEST_NET_PATCH",
+  "run_dir": "runs/MANUAL_TEST_NET_PATCH_<timestamp>",
+  "finished_at": "<timestamp>"
+}
+
+Shell return code: 0
+
+This shape means the runner reached its final checks. Review the actual logs,
