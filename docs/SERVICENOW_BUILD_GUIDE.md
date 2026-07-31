@@ -307,6 +307,9 @@ Create these 14 variables. Type numbers are ServiceNow's internal `type` values 
 
 Deliberate absences (learned the hard way — do NOT add): no MDS API key variable (production sources credentials from CyberArk, never from the requester); no Target Take (always derived from the uploaded package names); no staging method / package source dir / Blink fields / execution method (all removed in the upload-only simplification — the parser and the runner own those decisions). If you see variables like `package_sequence_input_method` or `mds_api_key_alias` in an older export, they are inactive leftovers; leave them inactive or delete them.
 
+For a sanitized submission JSON, upload links, record-state map, and CLI phase
+comparison, see the [governed ticket example](SERVICENOW_TICKET_EXAMPLE.md).
+
 ### 6.3 Catalog client script (exactly one active)
 
 One onLoad script (`Check Point FW Maintenance - upload only`, UI Type: All / applies to item view) pins the upload-only model:

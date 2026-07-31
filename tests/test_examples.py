@@ -15,6 +15,7 @@ GENERATED_PUBLIC_PATHS = {
     "docs/CDT_AND_MANAGEMENT_API.md",
     "docs/CERTIFIED_SCENARIOS.md",
     "docs/COMPONENT_REFERENCE.md",
+    "docs/SERVICENOW_TICKET_EXAMPLE.md",
     "docs/SERVICENOW_BUILD_GUIDE.md",
     "docs/START_HERE.md",
 }
@@ -148,6 +149,37 @@ class ExampleTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("Expected failure examples passed", result.stdout)
+
+    def test_runner_cli_walkthrough_is_safe_and_complete(self):
+        root = EXAMPLES / "runner_cli"
+        guide = (root / "README.md").read_text()
+        fixture = root / "cpuse-package.csv"
+        gate_output = (root / "expected/gate-stop.txt").read_text()
+        resume_output = (root / "expected/resume.txt").read_text()
+
+        self.assertIn("Without ServiceNow, every human gate is self-attested", guide)
+        self.assertIn("Production use must keep the manual tester", guide)
+        self.assertRegex(guide, r"Lab only.*`--simulate-gates`")
+        self.assertIn("--start-at second-member", guide)
+        self.assertGreaterEqual(guide.count('--chg-number "$RUN_ID"'), 2)
+        self.assertIn("cluster_initial_state_${RUN_ID}.json", guide)
+        self.assertIn("test_inputs/cpuse_install_take91.csv", guide)
+        self.assertIn("test_inputs/cpuse_remove_take91.csv", guide)
+        self.assertNotIn("--execute", guide)
+
+        with self.assertRaisesRegex(ValueError, "invalid SHA"):
+            runner.package_steps_from_rows(runner.parse_tabular_file(fixture))
+
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            text = path.read_text()
+            self.assertNotRegex(text, r"(?:REQ|RITM|SCTASK|CHG|CTASK)\d", str(path))
+            self.assertNotRegex(text, r"(?i)\b[0-9a-f]{40}\b|\b[0-9a-f]{64}\b", str(path))
+        self.assertIn("SYNTHETIC OUTPUT SHAPE", gate_output)
+        self.assertIn("Shell return code: 20", gate_output)
+        self.assertIn("SYNTHETIC OUTPUT SHAPE", resume_output)
+        self.assertIn("Shell return code: 0", resume_output)
 
 
 if __name__ == "__main__":

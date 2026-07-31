@@ -57,8 +57,9 @@ You do not have to adopt the whole project.
 | Call one Python helper | [Component reference](COMPONENT_REFERENCE.md) |
 | Use the Ansible playbooks with your own variables | [Component reference](COMPONENT_REFERENCE.md) |
 | Follow a complete component example | [Practical examples](../examples/README.md) |
-| Run the full command-line workflow | [Architecture guide](ARCHITECTURE_AND_ENGINEERING_GUIDE.md) |
+| Run the full command-line workflow | [Runner CLI walkthrough](../examples/runner_cli/README.md) |
 | Connect the workflow to ServiceNow | [ServiceNow build guide](SERVICENOW_BUILD_GUIDE.md) |
+| Start with a sanitized ServiceNow ticket | [Governed ticket example](SERVICENOW_TICKET_EXAMPLE.md) |
 | Follow one request from start to finish | [Workflow walkthrough](WORKFLOW_WALKTHROUGH.md) |
 
 ## Safe first steps
