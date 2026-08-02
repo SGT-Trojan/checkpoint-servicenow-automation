@@ -1,0 +1,10 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+Runner summary: completed
+Runner return code: 0
+Implementation CTASK: Closed Complete
+Final-validation CTASK: Closed Complete
+CHG after automation: Review
+CHG after approved closure: Closed Successful
+RITM terminal state: Complete
+REQ terminal state: Closed Complete
+Local sanitized final ServiceNow snapshot: not present

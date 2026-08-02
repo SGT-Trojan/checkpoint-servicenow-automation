@@ -9,6 +9,24 @@ the field definitions, ACLs, or business rules in the build guide.
 All addresses are from the RFC 5737 documentation ranges. The example contains
 no record numbers, sys_ids, credentials, customer names, or lab values.
 
+
+## Validated Three-Request Sequence
+
+The August 2026 recertification used three separate governed requests. Do not
+combine them into one RITM.
+
+| Request | Activity | Starting state | Result | Attachment |
+|---|---|---|---|---|
+| Major upgrade | `version_upgrade_activity` | R81.20 | R82 build 777 with embedded Take 60 | [Major-upgrade CSV](../test_inputs/cpuse_major_r8120_to_r82.csv) |
+| Take 91 install | `software_patch_activity` | R82 Take 60 | R82 Take 91 | [Install CSV](../test_inputs/cpuse_install_take91.csv) |
+| Take 91 removal | `software_patch_activity` | R82 Take 91 | R82 with Take 91 absent | [Removal CSV](../test_inputs/cpuse_remove_take91.csv) |
+
+Each request gets its own readiness result, approval, CHG, implementation task,
+tester boundary, evidence, and closure. The recertification performed live
+firewall mutations, reboots, policy operations, failover, exact reconciliation,
+and postchecks. Tester acceptance was simulated, so this run proves the
+technical gate but does not recertify the human CTASK approval path.
+
 ## Catalog Submission
 
 The JSON below represents the values a requester supplies on the RITM. An
@@ -40,11 +58,43 @@ Do not add credentials, package paths, execution switches, or a requested Take
 to the ticket. The runner derives and validates those values through the
 documented controls.
 
+
+## Major Upgrade Catalog Submission
+
+Use a separate request for the major upgrade:
+
+```json
+{
+  "activity_type": "version_upgrade_activity",
+  "environment": "lab",
+  "icap_mode": "disabled",
+  "target_ips": "192.0.2.20\n192.0.2.21",
+  "mds_host": "192.0.2.10",
+  "current_version": "R81.20",
+  "target_version": "R82",
+  "cpuse_package_upload": "CPUSE Major Upgrade.csv",
+  "preserve_original_active": "yes",
+  "tester_gate": "yes",
+  "scheduled_start": "<approved-start>",
+  "scheduled_end": "<approved-end>",
+  "cpuse_dependency_upload": "",
+  "special_instructions": "Install the mixed-version policy before failover and keep the tester pause open until evidence is attached."
+}
+```
+
+The major-upgrade CSV uses `action=upgrade` and `package_type=blink`. Its
+phase order is first-member upgrade, mixed-version policy, MVC on, failover,
+tester gate, second-member upgrade, final policy, MVC off, and original-active
+restoration. A changed SSH host key stops the member phase until the replacement
+fingerprint is verified through a trusted channel; it is never accepted
+automatically.
+
 ## Upload Artifacts
 
-Use the existing sanitized files as the two package-action examples. They are
+Use the existing sanitized files as the three package-action examples. They are
 linked instead of copied so their schema and safety corrections cannot drift:
 
+- [Major-upgrade CSV](../test_inputs/cpuse_major_r8120_to_r82.csv)
 - [JHF install CSV](../test_inputs/cpuse_install_take91.csv)
 - [JHF removal CSV](../test_inputs/cpuse_remove_take91.csv)
 

@@ -1,0 +1,7 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+Original ACTIVE member: EXAMPLE-GW-A
+Original STANDBY member: EXAMPLE-GW-B
+Resolved removal identity: REPLACE_WITH_EXACT_INSTALLED_R82_TAKE91_PACKAGE.tgz
+CDT candidate count: 1
+Selected candidate: EXAMPLE-GW-B only
+Mutation authorized: guarded first-member phase

@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "change": {
+    "number": "STANDALONE_R8120_R82",
+    "activity_type": "Major Version Upgrade",
+    "environment": "lab"
+  },
+  "checkpoint": {
+    "current_version": "R81.20",
+    "target_version": "R82",
+    "target_take": "60",
+    "cluster_name": "EXAMPLE-CLUSTER",
+    "cluster_mode": "cluster",
+    "mds_host": "192.0.2.10",
+    "cma_name": "EXAMPLE-CMA",
+    "domain": "EXAMPLE-DOMAIN",
+    "policy_package": "EXAMPLE-POLICY",
+    "members": [
+      {
+        "hostname": "EXAMPLE-GW-A",
+        "ip": "192.0.2.20"
+      },
+      {
+        "hostname": "EXAMPLE-GW-B",
+        "ip": "192.0.2.21"
+      }
+    ],
+    "preserve_original_active": true,
+    "icap_mode": "disabled"
+  },
+  "execution": {
+    "deployment_backend": "standalone",
+    "tester_pause": true,
+    "staging_method": "cprid_from_mds"
+  },
+  "package_steps": [
+    {
+      "name": "upgrade_to_r82",
+      "action": "upgrade",
+      "package_type": "blink",
+      "package_name": "REPLACE_WITH_APPROVED_R82_BLINK_IMAGE.tar",
+      "source_path": "/var/log/tmp/REPLACE_WITH_APPROVED_R82_BLINK_IMAGE.tar",
+      "checksum_sha256": "REPLACE_WITH_PUBLISHED_64_HEX_SHA256",
+      "reboot_expected": true
+    }
+  ]
+}

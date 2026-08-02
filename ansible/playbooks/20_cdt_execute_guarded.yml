@@ -17,7 +17,12 @@
           - lookup('env', 'CP_PASSWORD') | length > 0
           - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
           - activity_plan_file | default('') | length > 0
-        fail_msg: "CP_PASSWORD, CP_EXPERT_PASSWORD, and activity_plan_file are required for CDT execution."
+          - operation_id | default('') | length > 0
+          - phase | default('') in ['first-member', 'second-member']
+          - step | default('') | length > 0
+          - cdt_context_file | default('') | length > 0
+          - cdt_mutation_receipt_file | default('') | length > 0
+        fail_msg: "Credentials and plan-bound CDT context inputs are required for CDT execution."
 
     - name: Require explicit execution approval
       ansible.builtin.assert:
@@ -26,6 +31,23 @@
         fail_msg: >-
           CDT execution was not performed. Pass checkpoint_execute_upgrade=true only after
           the controlled candidate file has been reviewed and the CHG is approved to proceed.
+
+    - name: Validate protected candidate context before mutation
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/record_cdt_mutation.py"
+          - --activity-plan-file
+          - "{{ activity_plan_file }}"
+          - --context-file
+          - "{{ cdt_context_file }}"
+          - --operation-id
+          - "{{ operation_id }}"
+          - --phase
+          - "{{ phase }}"
+          - --step
+          - "{{ step }}"
+          - --validate-only
+      changed_when: false
 
     - name: Execute CDT using controlled one-member candidate file
       ansible.builtin.command:
@@ -50,6 +72,25 @@
       register: cdt_execute
       changed_when: true
 
+    - name: Bind successful CDT execution to its candidate context
+      ansible.builtin.command:
+        argv:
+          - "{{ scripts_dir }}/record_cdt_mutation.py"
+          - --activity-plan-file
+          - "{{ activity_plan_file }}"
+          - --context-file
+          - "{{ cdt_context_file }}"
+          - --receipt-file
+          - "{{ cdt_mutation_receipt_file }}"
+          - --operation-id
+          - "{{ operation_id }}"
+          - --phase
+          - "{{ phase }}"
+          - --step
+          - "{{ step }}"
+      register: cdt_mutation_receipt
+      changed_when: false
+
     - name: Ensure reports directory exists
       ansible.builtin.file:
         path: "{{ reports_dir }}"
@@ -61,6 +102,8 @@
         dest: "{{ reports_dir }}/20_cdt_execute_guarded_{{ chg_number | default('unknown') }}_{{ report_suffix }}.txt"
         content: "{{ cdt_execute.stdout }}
 {{ cdt_execute.stderr }}
+{{ cdt_mutation_receipt.stdout }}
+{{ cdt_mutation_receipt.stderr }}
 "
         mode: "0644"
 

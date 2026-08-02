@@ -21,5 +21,7 @@ Use GitHub's private vulnerability reporting feature when available.
 ## Supported versions
 
 This project is a reference implementation, not a vendor support commitment.
-Validate the exact Check Point release, Deployment Agent, CDT/API behavior,
-ServiceNow family release, and package critical information in your environment.
+Validate the exact Check Point release, the Deployment Agent minimum-build
+compatibility policy, CDT/API behavior, ServiceNow family release, and package
+critical information in your environment. Deployment Agent reconciliation must
+never downgrade an installed build that already meets the requested minimum.

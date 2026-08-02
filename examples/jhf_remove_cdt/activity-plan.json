@@ -62,9 +62,7 @@
       "dest_path": "/var/log/tmp",
       "checksum_sha1": "",
       "checksum_sha256": "",
-      "requires_present": [
-        "Take REPLACE_WITH_INSTALLED_TAKE"
-      ],
+      "requires_present": [],
       "requires_absent": [],
       "reboot_expected": true,
       "notes": "Documentation template; resolve the exact installed package identity before use"

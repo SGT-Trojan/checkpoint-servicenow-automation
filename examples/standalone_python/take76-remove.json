@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "change": {
+    "number": "STANDALONE_T76_REMOVE",
+    "activity_type": "Software Patch Removal",
+    "environment": "lab"
+  },
+  "checkpoint": {
+    "current_version": "R81.20",
+    "target_version": "R81.20",
+    "target_take": "76",
+    "cluster_name": "EXAMPLE-CLUSTER",
+    "cluster_mode": "cluster",
+    "mds_host": "192.0.2.10",
+    "cma_name": "EXAMPLE-CMA",
+    "domain": "EXAMPLE-DOMAIN",
+    "policy_package": "EXAMPLE-POLICY",
+    "members": [
+      {
+        "hostname": "EXAMPLE-GW-A",
+        "ip": "192.0.2.20"
+      },
+      {
+        "hostname": "EXAMPLE-GW-B",
+        "ip": "192.0.2.21"
+      }
+    ],
+    "preserve_original_active": true,
+    "icap_mode": "disabled"
+  },
+  "execution": {
+    "deployment_backend": "standalone",
+    "tester_pause": true
+  },
+  "package_steps": [
+    {
+      "name": "remove_take76",
+      "action": "remove",
+      "package_type": "jhf",
+      "package_name": "Take76",
+      "source_path": "",
+      "checksum_sha256": "",
+      "reboot_expected": true
+    }
+  ]
+}

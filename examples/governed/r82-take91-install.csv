@@ -1,0 +1,2 @@
+sequence_number,action,package_name,package_type,sha1,sha256,reboot_expected,notes
+1,install,REPLACE_WITH_APPROVED_R82_TAKE91_PACKAGE.tar,jhf,INVALID_SHA1_REPLACE_ME,INVALID_SHA256_REPLACE_ME,true,Fail-closed documentation template for an approved R82 Take 91 package

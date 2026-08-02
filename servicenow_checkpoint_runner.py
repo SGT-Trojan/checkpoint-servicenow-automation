@@ -12,12 +12,17 @@ import argparse
 import base64
 import csv
 import datetime as dt
+import fcntl
+import hashlib
 import io
 import json
 import os
 import re
+import secrets
 import shutil
+import stat
 import subprocess
+import sys
 import urllib.parse
 import urllib.request
 import zipfile
@@ -30,6 +35,9 @@ ANSIBLE_DIR = ROOT / "ansible"
 RUNS_DIR = ROOT / "runs"
 ALLOWED_TICKET_ATTACHMENT_SUFFIXES = {".csv", ".xlsx"}
 SERVICENOW_SYS_ID_RE = re.compile(r"[0-9a-fA-F]{32}")
+OPERATION_ID_RE = re.compile(r"run_[0-9a-f]{64}")
+sys.path.insert(0, str(ANSIBLE_DIR / "scripts"))
+from reconcile_cdt_member import validate_evidence_chain  # noqa: E402
 
 
 def default_ansible_playbook() -> Path:
@@ -531,11 +539,16 @@ def validated_package_hashes(
     return sha1, sha256
 
 
-def validated_package_name(value: str) -> str:
+def validated_package_name(value: str, *, allow_removal_alias: bool = False) -> str:
     stripped = value.strip()
-    if value != stripped or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+-]*", value):
+    pattern = (
+        r"[A-Za-z0-9][A-Za-z0-9_.+-]*(?: [A-Za-z0-9][A-Za-z0-9_.+-]*)*"
+        if allow_removal_alias
+        else r"[A-Za-z0-9][A-Za-z0-9_.+-]*"
+    )
+    if value != stripped or not re.fullmatch(pattern, value):
         raise ValueError(
-            f"package_name {value!r} contains whitespace, path separators, or unsupported characters"
+            f"package_name {value!r} contains unsafe whitespace, path separators, or unsupported characters"
         )
     return value
 
@@ -563,18 +576,30 @@ def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str 
         package_name = lower.get("package_name") or lower.get("package") or lower.get("filename") or lower.get("file_name") or ""
         if not package_name:
             continue
-        package_name = validated_package_name(package_name)
+        action = normalize_action(lower.get("action"))
+        package_name = validated_package_name(
+            package_name, allow_removal_alias=action == "remove"
+        )
         order_s = lower.get("sequence_number") or lower.get("sequence") or lower.get("order") or str(i)
         try:
             order = int(float(order_s))
         except ValueError:
             order = i
-        action = normalize_action(lower.get("action"))
         package_type = infer_package_type(package_name, lower.get("package_type", ""))
+        target_build = lower.get("target_build") or lower.get("os_build") or ""
+        if not target_build and package_type == "blink":
+            build_match = re.search(r"R\d+(?:_\d+)?[_-]T(\d+)(?:[_-]|\b)", package_name, re.I)
+            target_build = build_match.group(1) if build_match else ""
+        if target_build and (not target_build.isdigit() or int(target_build) <= 0):
+            raise ValueError("target_build must be a positive integer")
         name_base = re.sub(r"\.(tar|tgz|gz)$", "", Path(package_name).name, flags=re.I)
         step_name = lower.get("step_name") or f"{action}_{slug(name_base)}"
-        source_path = lower.get("source_path") or lower.get("path") or f"{package_source_dir.rstrip('/')}/{package_name}"
-        source_path = validated_package_source_path(source_path)
+        source_path = lower.get("source_path") or lower.get("path") or ""
+        if not source_path and not (action == "remove" and " " in package_name):
+            package_dir = package_source_dir.rstrip("/")
+            source_path = f"{package_dir}/{package_name}"
+        if source_path:
+            source_path = validated_package_source_path(source_path)
         checksum_sha1, checksum_sha256 = validated_package_hashes(
             action,
             package_name,
@@ -587,6 +612,7 @@ def package_steps_from_rows(rows: list[dict[str, str]], package_source_dir: str 
             "action": action,
             "package_name": package_name,
             "package_type": package_type,
+            "target_build": target_build,
             "source_path": source_path,
             "dest_path": lower.get("dest_path") or package_source_dir,
             "checksum_sha1": checksum_sha1,
@@ -713,6 +739,12 @@ def choose_attachment(context: dict[str, Any], kind: str) -> Path | None:
         for a in context.get("attachments", [])
         if (a.get("file_name") or "").lower().endswith((".csv", ".xlsx"))
     ]
+    if kind == "dependency":
+        candidates = [
+            name
+            for name in candidates
+            if not all(term in name.lower() for term in ("cpuse", "package"))
+        ]
     if candidates:
         raise ValueError(
             f"cannot identify {kind} attachment by filename; rename it to include "
@@ -816,11 +848,22 @@ def infer_target_take(steps: list[dict[str, Any]]) -> str:
     return ""
 
 
-def runner_vars(plan: dict[str, Any], plan_path: Path, phase: str = "", step: str = "") -> dict[str, Any]:
+def runner_vars(
+    plan: dict[str, Any],
+    plan_path: Path,
+    phase: str = "",
+    step: str = "",
+    *,
+    operation_id: str = "",
+    mutation_intent_dir: Path | None = None,
+    operation_dir: Path | None = None,
+) -> dict[str, Any]:
     cp = plan["checkpoint"]
     members = cp.get("members") or []
     a = members[0] if len(members) > 0 else {}
     b = members[1] if len(members) > 1 else a
+    artifact_step = step if step else "none"
+    artifact_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{phase}_{artifact_step}").strip("_")
     return {
         "chg_number": plan["change"]["number"],
         "activity_type": plan["change"]["activity_type"],
@@ -852,7 +895,196 @@ def runner_vars(plan: dict[str, Any], plan_path: Path, phase: str = "", step: st
         "checkpoint_execute_upgrade": True,
         "checkpoint_execute_direct": True,
         "package_stage_confirmed": False,
+        "operation_id": operation_id,
+        "mutation_intent_dir": str(mutation_intent_dir or ""),
+        "cdt_context_file": str(operation_dir / "cdt_contexts" / f"{artifact_slug}.json") if operation_dir is not None else "",
+        "cdt_mutation_receipt_file": str(operation_dir / "cdt_mutation_receipts" / f"{artifact_slug}.json") if operation_dir is not None else "",
+        "cdt_reconciliation_file": str(operation_dir / "cdt_reconciliation" / f"{artifact_slug}.json") if operation_dir is not None else "",
     }
+
+
+
+def canonical_authorization_bytes(plan: dict[str, Any]) -> bytes:
+    authorization = json.loads(json.dumps(plan))
+    authorization.pop("generated_at", None)
+    return json.dumps(
+        authorization, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("ascii")
+
+
+def secure_write_json(path: Path, value: dict[str, Any]) -> bytes:
+    data = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    fd = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+    )
+    with os.fdopen(fd, "wb") as handle:
+        os.fchmod(handle.fileno(), 0o600)
+        handle.write(data)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return data
+
+
+def secure_read_json(path: Path) -> tuple[dict[str, Any], bytes]:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        metadata = os.fstat(fd)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError(f"operation artifact must be a regular file: {path}")
+        if stat.S_IMODE(metadata.st_mode) != 0o600:
+            raise RuntimeError(f"operation artifact must have mode 0600: {path}")
+        if metadata.st_uid != os.geteuid():
+            raise RuntimeError(
+                f"operation artifact must be owned by the effective user: {path}"
+            )
+        with os.fdopen(fd, "rb") as handle:
+            fd = -1
+            data = handle.read()
+    finally:
+        if fd >= 0:
+            os.close(fd)
+    try:
+        value = json.loads(data)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"operation artifact is not valid JSON: {path}") from exc
+    if not isinstance(value, dict):
+        raise RuntimeError(f"operation artifact must contain a JSON object: {path}")
+    return value, data
+
+
+
+
+def resolve_operation_id(requested: str, start_at: str) -> str:
+    if start_at and not requested:
+        raise SystemExit("ERROR: --start-at requires the original --operation-id")
+    operation_id = requested or f"run_{secrets.token_hex(32)}"
+    if not OPERATION_ID_RE.fullmatch(operation_id):
+        raise SystemExit(
+            "ERROR: --operation-id must match run_<64 lowercase hex characters>"
+        )
+    return operation_id
+
+
+def require_private_directory(path: Path, label: str) -> None:
+    if path.is_symlink() or not path.is_dir():
+        raise RuntimeError(f"{label} must be a real directory")
+    metadata = path.stat()
+    if metadata.st_uid != os.geteuid():
+        raise RuntimeError(f"{label} must be owned by the effective user")
+    if stat.S_IMODE(metadata.st_mode) != 0o700:
+        raise RuntimeError(f"{label} must have mode 0700")
+
+
+def prepare_operation(operation_id: str) -> tuple[Path, Any, bool]:
+    if not OPERATION_ID_RE.fullmatch(operation_id):
+        raise SystemExit(
+            "ERROR: --operation-id must match run_<64 lowercase hex characters>"
+        )
+    operations_root = RUNS_DIR / "operations"
+    operations_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    require_private_directory(operations_root, "governed operations directory")
+    operation_dir = operations_root / operation_id
+    created = False
+    try:
+        operation_dir.mkdir(mode=0o700)
+        created = True
+    except FileExistsError:
+        pass
+    require_private_directory(operation_dir, "governed operation directory")
+    intent_dir = operation_dir / "mutation_intents"
+    intent_dir.mkdir(mode=0o700, exist_ok=True)
+    require_private_directory(intent_dir, "mutation intent directory")
+    for name, label in (
+        ("cdt_contexts", "CDT context directory"),
+        ("cdt_mutation_receipts", "CDT mutation receipt directory"),
+        ("cdt_reconciliation", "CDT reconciliation directory"),
+    ):
+        artifact_dir = operation_dir / name
+        artifact_dir.mkdir(mode=0o700, exist_ok=True)
+        require_private_directory(artifact_dir, label)
+    lock_path = operation_dir / "operation.lock"
+    lock_fd = os.open(
+        lock_path,
+        os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+        0o600,
+    )
+    os.fchmod(lock_fd, 0o600)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        os.close(lock_fd)
+        raise RuntimeError(
+            f"governed operation {operation_id} is already running"
+        ) from exc
+    return operation_dir, os.fdopen(lock_fd, "r+"), created
+
+
+def bind_operation_plan(
+    operation_dir: Path,
+    operation_id: str,
+    change_identity: str,
+    candidate: dict[str, Any],
+    *,
+    is_resume: bool,
+    operation_dir_created: bool,
+) -> tuple[dict[str, Any], Path]:
+    state_path = operation_dir / "state.json"
+    plan_path = operation_dir / "activity_plan.json"
+    authorization_sha256 = hashlib.sha256(
+        canonical_authorization_bytes(candidate)
+    ).hexdigest()
+    if not state_path.exists() and not plan_path.exists():
+        if not operation_dir_created:
+            raise RuntimeError(
+                "pre-existing governed operation directory has no bound plan; collision refused"
+            )
+        if is_resume:
+            raise RuntimeError(
+                "cannot resume because the governed operation plan is missing"
+            )
+        plan_bytes = secure_write_json(plan_path, candidate)
+        secure_write_json(
+            state_path,
+            {
+                "schema": 1,
+                "operation_id": operation_id,
+                "change_identity": change_identity,
+                "authorization_sha256": authorization_sha256,
+                "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
+            },
+        )
+        return candidate, plan_path
+    if not state_path.exists() or not plan_path.exists():
+        raise RuntimeError(
+            "governed operation state is incomplete; refusing to continue"
+        )
+    state, _ = secure_read_json(state_path)
+    persisted_plan, plan_bytes = secure_read_json(plan_path)
+    expected = {
+        "schema": 1,
+        "operation_id": operation_id,
+        "change_identity": change_identity,
+        "authorization_sha256": authorization_sha256,
+        "plan_sha256": hashlib.sha256(plan_bytes).hexdigest(),
+    }
+    for key, value in expected.items():
+        if state.get(key) != value:
+            if key == "authorization_sha256":
+                raise RuntimeError(
+                    "current ticket/package authorization differs from the "
+                    "immutable governed operation plan"
+                )
+            raise RuntimeError(f"governed operation state does not match {key}")
+    persisted_authorization_sha256 = hashlib.sha256(
+        canonical_authorization_bytes(persisted_plan)
+    ).hexdigest()
+    if persisted_authorization_sha256 != state["authorization_sha256"]:
+        raise RuntimeError(
+            "immutable governed operation plan authorization digest is invalid"
+        )
+    return persisted_plan, plan_path
 
 
 def run_playbook(ansible: Path, playbook: str, vars_path: Path, env: dict[str, str], log_path: Path, extra: dict[str, Any] | None = None) -> int:
@@ -1020,6 +1252,7 @@ def workflow_steps(plan: dict[str, Any]) -> list[tuple[str, str, str, dict[str, 
                 ("first-member", "08_validate_package_prerequisites.yml", step, {}),
                 ("first-member", "10_cdt_generate_candidates.yml", step, {}),
                 ("first-member", "20_cdt_execute_guarded.yml", step, {"checkpoint_execute_upgrade": True}),
+                ("first-member", "21_cdt_reconcile_member.yml", step, {}),
             ])
         steps.extend([
             ("mixed-version-policy-gate", "31_major_policy_gate.yml", "", {}),
@@ -1034,6 +1267,7 @@ def workflow_steps(plan: dict[str, Any]) -> list[tuple[str, str, str, dict[str, 
                 ("second-member", "08_validate_package_prerequisites.yml", step, {}),
                 ("second-member", "10_cdt_generate_candidates.yml", step, {}),
                 ("second-member", "20_cdt_execute_guarded.yml", step, {"checkpoint_execute_upgrade": True}),
+                ("second-member", "21_cdt_reconcile_member.yml", step, {}),
             ])
         steps.extend([
             ("final-policy-install", "31_major_policy_gate.yml", "", {}),
@@ -1071,6 +1305,7 @@ def workflow_steps(plan: dict[str, Any]) -> list[tuple[str, str, str, dict[str, 
             else:
                 steps.append((member_phase, "10_cdt_generate_candidates.yml", step, {}))
                 steps.append((member_phase, "20_cdt_execute_guarded.yml", step, {"checkpoint_execute_upgrade": True}))
+                steps.append((member_phase, "21_cdt_reconcile_member.yml", step, {}))
         if member_phase == "first-member" and plan["checkpoint"].get("cluster_mode") != "standalone":
             steps.append(("failover-to-first", "23_failover_to_member.yml", "", {}))
     if plan["checkpoint"].get("preserve_original_active") and plan["checkpoint"].get("cluster_mode") != "standalone":
@@ -1097,6 +1332,61 @@ def validate_phase_boundaries(
         raise SystemExit("ERROR: --stop-after discover-targets cannot be used with --skip-discovery")
     if stop_after and stop_after != "discover-targets" and stop_after not in phases:
         raise SystemExit(f"ERROR: --stop-after phase {stop_after!r} is not present in this workflow")
+
+
+def require_resume_mutation_chain(
+    steps: list[tuple[str, str, str, dict[str, Any]]],
+    *,
+    start_at: str,
+    operation_dir: Path,
+    operation_id: str,
+    plan_path: Path,
+) -> None:
+    if not start_at:
+        return
+    boundary = next(
+        index for index, (phase, _playbook, _step, _extra) in enumerate(steps)
+        if phase == start_at
+    )
+    skipped = steps[:boundary]
+    mutating = {
+        "20_cdt_execute_guarded.yml",
+        "30_direct_package_step.yml",
+        "41_api_execute_package.yml",
+    }
+    for index, (phase, playbook, step, _extra) in enumerate(skipped):
+        if playbook not in mutating:
+            continue
+        if playbook != "20_cdt_execute_guarded.yml":
+            raise RuntimeError(
+                f"resume across {playbook} is blocked because that backend has no "
+                "immutable member-specific receipt and reconciliation chain"
+            )
+        if not step:
+            raise RuntimeError("skipped CDT mutation has no exact package step")
+        expected_reconciliation = (
+            phase,
+            "21_cdt_reconcile_member.yml",
+            step,
+        )
+        if not any(
+            candidate[:3] == expected_reconciliation
+            for candidate in skipped[index + 1 :]
+        ):
+            raise RuntimeError(
+                f"resume boundary {start_at!r} skips CDT mutation {phase}/{step} "
+                "without its immediate reconciliation phase"
+            )
+        artifact_slug = slug(f"{phase}_{step}")
+        validate_evidence_chain(
+            plan_path,
+            operation_dir / "cdt_contexts" / f"{artifact_slug}.json",
+            operation_dir / "cdt_mutation_receipts" / f"{artifact_slug}.json",
+            operation_dir / "cdt_reconciliation" / f"{artifact_slug}.json",
+            operation_id,
+            phase,
+            step,
+        )
 
 
 def main() -> int:
@@ -1132,6 +1422,11 @@ def main() -> int:
     ap.add_argument("--simulate-gates", action="store_true", help="Auto-approve tester gates for lab validation")
     ap.add_argument("--lab-override-governance", action="store_true", help="Bypass ServiceNow marker/state/approval/readiness checks for controlled lab validation only")
     ap.add_argument("--start-at", default="", help="Resume at phase id")
+    ap.add_argument(
+        "--operation-id",
+        default="",
+        help="Durable run_<64hex> identity; required for every manual resume",
+    )
     ap.add_argument("--stop-after", default="", help="Stop after phase id")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
@@ -1151,6 +1446,13 @@ def main() -> int:
         values = context.get("values", {})
 
     RUNS_DIR.mkdir(exist_ok=True)
+    operation_id = resolve_operation_id(args.operation_id, args.start_at)
+    operation_dir, operation_lock, operation_dir_created = prepare_operation(
+        operation_id
+    )
+    # Keep the descriptor alive for the complete process. Closing it releases
+    # the operation-level flock.
+    _operation_lock = operation_lock
     run_dir = RUNS_DIR / f"{args.chg_number}_{dt.datetime.now().strftime('%Y%m%d%H%M%S')}"
     run_dir.mkdir(parents=True)
     (run_dir / "attachments").mkdir()
@@ -1190,14 +1492,27 @@ def main() -> int:
             print(json.dumps(summary, indent=2))
             return CONTROLLED_STOP_RC
 
-    plan = build_base_plan(args, steps, discovered, values)
-    plan_path = run_dir / f"{args.chg_number}_activity_plan.json"
-    plan_path.write_text(json.dumps(plan, indent=2) + "\n")
+    candidate_plan = build_base_plan(args, steps, discovered, values)
+    plan, plan_path = bind_operation_plan(
+        operation_dir,
+        operation_id,
+        args.chg_sys_id or args.chg_number,
+        candidate_plan,
+        is_resume=bool(args.start_at),
+        operation_dir_created=operation_dir_created,
+    )
     vars_path = run_dir / f"{args.chg_number}_vars.json"
 
     all_steps = workflow_steps(plan)
     validate_phase_boundaries(
         all_steps, start_at=args.start_at, stop_after=args.stop_after, skip_discovery=args.skip_discovery
+    )
+    require_resume_mutation_chain(
+        all_steps,
+        start_at=args.start_at,
+        operation_dir=operation_dir,
+        operation_id=operation_id,
+        plan_path=plan_path,
     )
     active = not bool(args.start_at)
     executed_phases = 0
@@ -1215,7 +1530,21 @@ def main() -> int:
             post_phase(sn, context, phase, "waiting", "Tester validation is required before continuing.")
             print(f"STOP: tester gate waiting at {phase}. Re-run with --simulate-gates or --start-at second-member after approval.")
             return 20
-        vars_path.write_text(json.dumps(runner_vars(plan, plan_path, phase, step), indent=2) + "\n")
+        vars_path.write_text(
+            json.dumps(
+                runner_vars(
+                    plan,
+                    plan_path,
+                    phase,
+                    step,
+                    operation_id=operation_id,
+                    mutation_intent_dir=operation_dir / "mutation_intents",
+                    operation_dir=operation_dir,
+                ),
+                indent=2,
+            )
+            + "\n"
+        )
         log_path = run_dir / "logs" / f"{phase}_{step or 'none'}_{playbook}.log"
         post_phase(sn, context, phase, "started", f"Running {playbook}{' step '+step if step else ''}.")
         if args.dry_run:
@@ -1248,6 +1577,7 @@ def main() -> int:
         "chg_number": args.chg_number,
         "run_dir": str(run_dir),
         "activity_plan": str(plan_path),
+        "operation_id": operation_id,
         "finished_at": utc_now(),
     }
     if stopped_after:

@@ -7,8 +7,7 @@ filename. During candidate generation, the helper reads CPInstLog history from
 both gateways through CPRID. It matches `source_path`, `package_name`,
 `display_name`, `name`, and the step name. The `requires_present` and
 `requires_absent` fields are prerequisite checks; they are never removal
-identities. The helper stops if the result is missing or ambiguous. Use a full
-installed filename when you already know it.
+identities. The helper stops if the result is missing or ambiguous. A full installed filename is still only a search input; CPInstLog must confirm it uniquely.
 
 1. Replace the TEST-NET values and the `REPLACE_...` Take alias in `activity-plan.json`.
 2. Load `CP_PASSWORD` and `CP_EXPERT_PASSWORD` from a protected environment.

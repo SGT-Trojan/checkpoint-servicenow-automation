@@ -1,0 +1,2 @@
+sequence_number,action,package_name,package_type,target_build,sha1,sha256,reboot_expected,notes
+1,upgrade,REPLACE_WITH_APPROVED_R82_BLINK_IMAGE.tgz,blink,777,INVALID_SHA1_REPLACE_ME,INVALID_SHA256_REPLACE_ME,true,Fail-closed documentation template for an approved R82 image with bundled Take 60

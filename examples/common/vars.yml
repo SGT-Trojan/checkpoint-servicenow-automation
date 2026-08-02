@@ -8,6 +8,8 @@ member_a_ip: "192.0.2.20"
 member_b_ip: "192.0.2.21"
 icap_mode: required
 change_id: 0
+example_operation_id: run_0000000000000000000000000000000000000000000000000000000000000000
+example_cdt_artifact_root: /tmp/checkpoint-automation-example
 allow_cdt_changes: false
 allow_api_changes: false
 allow_direct_changes: false

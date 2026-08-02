@@ -5,6 +5,8 @@ import os
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -70,6 +72,63 @@ class WorkerGateTests(unittest.TestCase):
                 )
             finally:
                 worker.ROOT = old_root
+
+
+
+
+class WorkerOperationIdentityTests(unittest.TestCase):
+    def test_initial_run_generates_once_and_resumes_reuse_identity(self) -> None:
+        entry: dict = {}
+        with mock.patch.object(
+            worker.secrets, "token_hex", return_value="a" * 64
+        ) as token_hex:
+            first = worker.operation_id_for_entry(entry, start_at="")
+            resumed = worker.operation_id_for_entry(
+                entry, start_at="second-member"
+            )
+        self.assertEqual(first, "run_" + "a" * 64)
+        self.assertEqual(resumed, first)
+        token_hex.assert_called_once_with(32)
+
+    def test_resume_without_identity_and_invalid_state_fail_closed(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "cannot resume"):
+            worker.operation_id_for_entry({}, start_at="second-member")
+        with self.assertRaisesRegex(RuntimeError, "invalid governed operation"):
+            worker.operation_id_for_entry(
+                {"operation_id": "run_invalid"}, start_at=""
+            )
+
+    def test_worker_state_is_atomic_private_and_persists_operation_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            operation_id = "run_" + "c" * 64
+            worker.save_state(
+                path,
+                {"changes": {"change": {"operation_id": operation_id}}},
+            )
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(
+                worker.load_state(path)["changes"]["change"]["operation_id"],
+                operation_id,
+            )
+
+    def test_runner_command_always_carries_operation_identity(self) -> None:
+        operation_id = "run_" + "b" * 64
+        args = SimpleNamespace(simulate_gates=False)
+        command = worker.build_runner_cmd(
+            args,
+            "change-sys-id",
+            operation_id=operation_id,
+            start_at="second-member",
+        )
+        self.assertEqual(
+            command[command.index("--operation-id") + 1],
+            operation_id,
+        )
+        self.assertEqual(
+            command[command.index("--start-at") + 1],
+            "second-member",
+        )
 
 
 if __name__ == "__main__":

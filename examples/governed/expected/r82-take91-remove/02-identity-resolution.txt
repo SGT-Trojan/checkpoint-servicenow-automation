@@ -1,0 +1,6 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+Submitted alias: REPLACE_WITH_INSTALLED_R82_TAKE91_PACKAGE.tar
+CPInstLog matching candidates: 1
+Resolved installed identity: REPLACE_WITH_EXACT_INSTALLED_R82_TAKE91_PACKAGE.tgz
+Prerequisite fields used as selectors: no
+Resolution verdict: unique exact identity accepted

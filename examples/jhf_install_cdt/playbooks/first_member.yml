@@ -5,6 +5,10 @@
     activity_plan: "{{ lookup('file', example_plan_file) | from_json }}"
     step: install_approved_jhf
     phase: first-member
+    operation_id: "{{ example_operation_id }}"
+    cdt_context_file: "{{ example_cdt_artifact_root }}/contexts/first-member_install_approved_jhf.json"
+    cdt_mutation_receipt_file: "{{ example_cdt_artifact_root }}/receipts/first-member_install_approved_jhf.json"
+    cdt_reconciliation_file: "{{ example_cdt_artifact_root }}/evidence/first-member_install_approved_jhf.json"
 - import_playbook: ../../../ansible/playbooks/00_precheck.yml
 - import_playbook: ../../../ansible/playbooks/07_validate_deployment_agent.yml
   vars: *plan
@@ -19,5 +23,7 @@
   vars:
     <<: *plan
     checkpoint_execute_upgrade: "{{ allow_cdt_changes | default(false) }}"
+- import_playbook: ../../../ansible/playbooks/21_cdt_reconcile_member.yml
+  vars: *plan
 - import_playbook: ../../../ansible/playbooks/22_monitor_gateways.yml
 - import_playbook: ../../../ansible/playbooks/23_failover_to_member.yml

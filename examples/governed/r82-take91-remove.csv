@@ -1,0 +1,2 @@
+sequence_number,action,package_name,package_type,sha1,sha256,reboot_expected,notes
+1,remove,REPLACE_WITH_INSTALLED_R82_TAKE91_PACKAGE.tar,jhf,,,true,Fail-closed alias template that must resolve uniquely through CPInstLog before removal

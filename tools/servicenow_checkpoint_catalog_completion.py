@@ -56,6 +56,17 @@ RULE_SCRIPT = r"""(function executeRule(current, previous) {
         deliveryTask.update();
     }
 
+    // Closing default delivery tasks can synchronously recalculate the RITM
+    // from all task outcomes. Reassert the governed CHG outcome afterward so a
+    // remediated readiness failure cannot override a successful change.
+    if (!ritm.get(current.parent.toString()))
+        return;
+    ritm.state = finalState;
+    ritm.stage = finalStage;
+    ritm.active = false;
+    ritm.close_notes = note;
+    ritm.update();
+
     if (!ritm.request)
         return;
     var siblings = new GlideRecord('sc_req_item');

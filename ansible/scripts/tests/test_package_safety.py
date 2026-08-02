@@ -92,12 +92,41 @@ class PackageSafetyTests(unittest.TestCase):
             "/var/log/tmp/Check_Point-R82_JHF+T91_FULL.tgz",
         )
 
+    def test_remove_accepts_safe_user_facing_take_alias(self) -> None:
+        steps = runner.package_steps_from_rows(
+            [{"package_name": "Take 76", "action": "uninstall"}]
+        )
+        self.assertEqual(steps[0]["action"], "remove")
+        self.assertEqual(steps[0]["package_name"], "Take 76")
+        self.assertEqual(steps[0]["source_path"], "")
+
+        with self.assertRaisesRegex(ValueError, "package_name"):
+            runner.package_steps_from_rows(
+                [{"package_name": "Take 76", "action": "install", "sha256": "a" * 64}]
+            )
+
     def test_attachment_role_must_be_identifiable(self) -> None:
         context = {"attachments": [{"file_name": "input.csv", "local_path": "/tmp/input.csv"}]}
         with self.assertRaisesRegex(ValueError, "cannot identify package"):
             runner.choose_attachment(context, "package")
         named = {"attachments": [{"file_name": "CPUSE Package.csv", "local_path": "/tmp/package.csv"}]}
         self.assertEqual(runner.choose_attachment(named, "package"), Path("/tmp/package.csv"))
+
+    def test_optional_dependency_ignores_the_named_package_attachment(self) -> None:
+        context = {
+            "attachments": [{"file_name": "CPUSE Package - Take 76.csv", "local_path": "/tmp/package.csv"}]
+        }
+        self.assertIsNone(runner.choose_attachment(context, "dependency"))
+
+    def test_optional_dependency_rejects_an_unclassified_second_csv(self) -> None:
+        context = {
+            "attachments": [
+                {"file_name": "CPUSE Package.csv", "local_path": "/tmp/package.csv"},
+                {"file_name": "unknown.csv", "local_path": "/tmp/unknown.csv"},
+            ]
+        }
+        with self.assertRaisesRegex(ValueError, "cannot identify dependency"):
+            runner.choose_attachment(context, "dependency")
 
     def test_dependencies_are_not_uninstall_aliases_or_absent_expectations(self) -> None:
         step = {

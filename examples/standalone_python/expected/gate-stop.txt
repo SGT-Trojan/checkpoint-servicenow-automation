@@ -1,0 +1,6 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+
+Standalone phase complete: failover-to-first
+ERROR: phase second-member is out of order; next required phase is simulate-tester-gate
+
+The workflow journal remains stopped before second-member.

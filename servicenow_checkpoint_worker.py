@@ -19,6 +19,8 @@ import datetime as dt
 import fcntl
 import json
 import os
+import re
+import secrets
 import subprocess
 import sys
 import time
@@ -52,6 +54,7 @@ COMPLETE_STATES = {"3", "7", "closed complete", "closed_complete", "closed skipp
 TESTER_APPROVED_STATES = {"3", "closed complete", "closed_complete"}
 PRE_PHASE_FAILURES = {"", "unknown", "initialization", "discover-targets"}
 INCOMPLETE_STATES = {"4", "closed incomplete", "closed_incomplete", "canceled", "cancelled"}
+OPERATION_ID_RE = re.compile(r"run_[0-9a-f]{64}")
 
 
 def utc_now() -> str:
@@ -65,10 +68,34 @@ def load_state(path: Path) -> dict[str, Any]:
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
-    tmp.replace(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if path.parent.is_symlink() or path.parent.stat().st_mode & 0o077:
+        raise RuntimeError("worker state directory must be a private real directory")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    data = (json.dumps(state, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    fd = os.open(
+        tmp,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+    )
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            fd = -1
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        if tmp.exists():
+            tmp.unlink()
 
 
 def post_note(sn: ServiceNowClient, chg: dict[str, Any], text: str) -> None:
@@ -391,12 +418,32 @@ def implementation_task_is_open(task: dict[str, Any] | None) -> bool:
     return display_value(task.get("state")).lower() not in READINESS_CLOSED_STATES | {"4", "closed incomplete"}
 
 
-def build_runner_cmd(args: argparse.Namespace, chg_sys_id: str, *, start_at: str = "") -> list[str]:
+def operation_id_for_entry(entry: dict[str, Any], *, start_at: str) -> str:
+    operation_id = entry.get("operation_id")
+    if operation_id is None:
+        if start_at:
+            raise RuntimeError("cannot resume governed automation without its persisted operation ID")
+        operation_id = f"run_{secrets.token_hex(32)}"
+        entry["operation_id"] = operation_id
+    if not isinstance(operation_id, str) or not OPERATION_ID_RE.fullmatch(operation_id):
+        raise RuntimeError("worker state contains an invalid governed operation ID")
+    return operation_id
+
+
+def build_runner_cmd(
+    args: argparse.Namespace,
+    chg_sys_id: str,
+    *,
+    operation_id: str,
+    start_at: str = "",
+) -> list[str]:
     cmd = [
         sys.executable,
         str(RUNNER),
         "--chg-sys-id",
         chg_sys_id,
+        "--operation-id",
+        operation_id,
     ]
     if start_at:
         cmd.extend(["--start-at", start_at])
@@ -411,10 +458,15 @@ def run_runner(args: argparse.Namespace, chg: dict[str, Any], *, start_at: str, 
     log_dir = Path(args.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"{chg_number}_{dt.datetime.now().strftime('%Y%m%d%H%M%S')}_{run_kind}.log"
-    cmd = build_runner_cmd(args, chg["sys_id"], start_at=start_at)
-    safe_cmd = redact_cmd(cmd)
-
     entry = state.setdefault("changes", {}).setdefault(chg["sys_id"], {})
+    operation_id = operation_id_for_entry(entry, start_at=start_at)
+    cmd = build_runner_cmd(
+        args,
+        chg["sys_id"],
+        operation_id=operation_id,
+        start_at=start_at,
+    )
+    safe_cmd = redact_cmd(cmd)
     entry.update(
         {
             "number": chg_number,
@@ -424,6 +476,7 @@ def run_runner(args: argparse.Namespace, chg: dict[str, Any], *, start_at: str, 
             "last_started_epoch": time.time(),
             "last_log": str(log_path),
             "command": safe_cmd,
+            "operation_id": operation_id,
         }
     )
     save_state(Path(args.state_file), state)

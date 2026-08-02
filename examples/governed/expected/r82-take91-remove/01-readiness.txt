@@ -1,0 +1,9 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+Readiness SCTASK: Closed Complete
+Readiness status: ready
+Managed object: EXAMPLE-CLUSTER (two-member cluster)
+Current state: R82 build 777, separately installed Take 91 on both members
+Original roles: EXAMPLE-GW-A ACTIVE, EXAMPLE-GW-B STANDBY
+Plan: one JHF remove action; reboot expected; no staging action
+ICAP mode: disabled
+Evidence reference: <readiness-run>

@@ -27,7 +27,9 @@ Before a change, complete discovery, readiness, package/hash validation, cluster
 
 | Goal | Example | Default behavior |
 |---|---|---|
+| Follow completed ServiceNow-governed scenarios | [`governed`](governed/README.md) | Sanitized ticket walkthroughs; package fixtures fail closed |
 | Run the complete workflow without ServiceNow | [`runner_cli`](runner_cli/README.md) | Placeholder CSV; execution blocked until copied and replaced |
+| Run a journaled workflow without ServiceNow or Ansible | [`standalone_python`](standalone_python/README.md) | Placeholder plans; validation fails until protected copies are completed |
 | Discover and check a cluster | [`read_only/discover_and_check`](read_only/discover_and_check/README.md) | Connected, read-only |
 | Observe fail-closed behavior | [`expected_failures`](expected_failures/README.md) | Offline, CI-safe |
 | Understand a CDT JHF install | [`jhf_install_cdt`](jhf_install_cdt/README.md) | Placeholder plan; execution disabled |
@@ -38,6 +40,7 @@ Before a change, complete discovery, readiness, package/hash validation, cluster
 | Compose helpers in your own workflow | [`direct_helpers`](direct_helpers/README.md) | Guidance; no execution |
 | Import one component | [`custom_playbook`](custom_playbook/README.md) | Connected, read-only |
 
-The runner walkthrough shows the end-to-end ServiceNow-free path. The governed
+The runner walkthrough is ServiceNow-free but still uses Ansible. The standalone
+Python walkthrough composes the helpers without `ansible-playbook`. The governed
 record lifecycle remains in the [build guide](../docs/SERVICENOW_BUILD_GUIDE.md)
 and [ticket example](../docs/SERVICENOW_TICKET_EXAMPLE.md).

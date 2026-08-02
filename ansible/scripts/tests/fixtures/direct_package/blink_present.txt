@@ -1,0 +1,2 @@
+Check_Point_R82_Blink_T60.tar | Status: Installed
+__RC=0

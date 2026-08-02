@@ -61,6 +61,7 @@ guides.
 | How it was run | What completed |
 |---|---|
 | ServiceNow and CDT | Installed and removed R81.20 Take 76. Upgraded R81.20 build 634, with no separately installed JHF, to R82 build 777 with Take 60. Used real approvals, tester tasks, failure recovery, and closure. |
+| Standalone Python | Without ServiceNow or Ansible, installed and removed R81.20 Take 76, then upgraded R81.20 to R82 build 777 with embedded Take 60. Used simulated tester gates. |
 | Command line and CDT | Ran the same R81.20 work with runner safety gates. Also installed R82 Recommended Take 107 over Take 60, one member at a time. |
 | Command line and Management API | Installed R81.20 Take 76 and ran the R81.20-to-R82 upgrade. Removed Take 76 with the guarded direct CPUSE fallback because the tested API could not safely remove it one member at a time. |
 | Deployment Agent | Confirmed that build 2771 was already installed and current on both members through the separate Deployment Agent workflow. |
@@ -120,6 +121,7 @@ hashes. Choosing a package does not install it.
 | Choose between CDT and Management API deployment | [CDT and Management API deployment](docs/CDT_AND_MANAGEMENT_API.md) |
 | Follow copy-ready helper and playbook scenarios | [Practical examples](examples/README.md) |
 | Run the complete workflow without ServiceNow | [Runner CLI walkthrough](examples/runner_cli/README.md) |
+| Run without ServiceNow or Ansible | [Standalone Python workflow](docs/STANDALONE_PYTHON_WORKFLOW.md) |
 | Reuse individual scripts or playbooks | [Component and integration reference](docs/COMPONENT_REFERENCE.md) |
 | Reproduce the full ServiceNow-governed implementation | [ServiceNow build guide](docs/SERVICENOW_BUILD_GUIDE.md) |
 | Start from sanitized ticket-shaped artifacts | [Governed ticket example](docs/SERVICENOW_TICKET_EXAMPLE.md) |
