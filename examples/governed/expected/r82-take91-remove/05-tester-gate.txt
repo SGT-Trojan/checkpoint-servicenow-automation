@@ -1,0 +1,8 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+failover-to-first: EXAMPLE-GW-B is ACTIVE
+approve-testers: waiting
+Runner return code: 20
+Worker state: waiting_tester
+Tester CTASK source: existing ServiceNow business-rule-created task
+Tester CTASK state: Open
+Second-member mutation authorized: no

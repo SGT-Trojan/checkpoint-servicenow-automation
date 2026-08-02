@@ -2,14 +2,21 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import secrets
 import shlex
 import sys
+import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import checkpoint_cluster_upgrade as c  # noqa: E402
+
+from governed_cdt_artifacts import atomic_write_private_json  # noqa: E402
 
 
 def package_from_plan(plan: dict, step_name: str | None) -> dict:
@@ -52,10 +59,6 @@ def shell_quote(value: str) -> str:
 def py_string(value: str) -> str:
     return repr(value)
 
-def normalize_text(text: str) -> str:
-    text = re.sub(r'<[^>]+>', ' ', text)
-    return re.sub(r'\s+', ' ', text).strip().lower()
-
 
 def listify(value) -> list[str]:
     if not value:
@@ -96,13 +99,6 @@ def take_from_text(value: str) -> str | None:
     return match.group(1) if match else None
 
 
-def filename_from_token(value: str) -> str | None:
-    base = Path(value.strip()).name
-    if re.search(r'\.(?:tgz|tar)$', base, re.IGNORECASE):
-        return base[:-4] + '.tgz'
-    return None
-
-
 def cpinstlog_grep_pattern(aliases: list[str]) -> str:
     parts: list[str] = []
     for alias in aliases:
@@ -128,102 +124,294 @@ def cpinstlog_grep_pattern(aliases: list[str]) -> str:
     return '|'.join(unique) or r'$^'
 
 
+SAFE_PACKAGE_FILENAME_RE = re.compile(
+    r'(?<![A-Za-z0-9_.+-])'
+    r'([A-Za-z0-9][A-Za-z0-9_.+-]*\.(?:tgz|tar))'
+    r'(?![A-Za-z0-9_.+-])',
+    re.IGNORECASE,
+)
+PACKAGE_FILENAME_PATTERN = r'[A-Za-z0-9][A-Za-z0-9_.+-]*\.(?:tgz|tar)'
+PACKAGE_STATUS_PATTERN = r'Installed|Not[ _-]?Installed|Uninstalled|Removed'
+PACKAGE_ROW_RE = re.compile(
+    rf'^\s*(?:Name\s*:\s*)?({PACKAGE_FILENAME_PATTERN})\s*\|\s*'
+    rf'Status\s*:\s*({PACKAGE_STATUS_PATTERN})\s*$',
+    re.IGNORECASE,
+)
+PACKAGE_NAME_ROW_RE = re.compile(
+    rf'^\s*Name\s*:\s*({PACKAGE_FILENAME_PATTERN})\s*$', re.IGNORECASE
+)
+PACKAGE_STATUS_ROW_RE = re.compile(
+    rf'^\s*Status\s*:\s*({PACKAGE_STATUS_PATTERN})\s*$', re.IGNORECASE
+)
+PACKAGE_TABLE_HEADER_RE = re.compile(
+    r'^\s*(?:Blink Images|Installed Packages|'
+    r'(?:Package\s+)?Name\s*\|\s*Status)\s*$',
+    re.IGNORECASE,
+)
+PACKAGE_TABLE_SEPARATOR_RE = re.compile(
+    r'^\s*(?:[-=]{3,}|\+(?:-+\+)+)\s*$'
+)
+
+
+def package_filename_tokens(text: str) -> list[str]:
+    """Extract complete package filename tokens, never extension prefixes."""
+    return SAFE_PACKAGE_FILENAME_RE.findall(text)
+
+
+def package_identity_matches_alias(candidate: str, aliases: list[str]) -> bool:
+    candidate_lower = candidate.lower()
+    candidate_stem = re.sub(r'\.(?:tgz|tar)$', '', candidate_lower)
+    for alias in aliases:
+        base = Path(str(alias)).name.strip()
+        alias_tokens = package_filename_tokens(base)
+        if len(alias_tokens) == 1 and alias_tokens[0] == base:
+            alias_lower = alias_tokens[0].lower()
+            alias_stem = re.sub(r'\.(?:tgz|tar)$', '', alias_lower)
+            if candidate_lower == alias_lower or candidate_stem == alias_stem:
+                return True
+        elif base and candidate_stem == base.lower():
+            return True
+        take = take_from_text(str(alias))
+        if take and re.search(
+            fr'(?:_T{re.escape(take)}(?:_|\.|$)|'
+            fr'#{re.escape(take)}(?:_|\.|$)|'
+            fr'Bundle_T{re.escape(take)}(?:_|\.|$)|'
+            fr'Take[ _-]?{re.escape(take)}(?:_|\.|$))',
+            candidate,
+            re.IGNORECASE,
+        ):
+            return True
+    return False
+
+
 def package_candidates_from_history(history: str, aliases: list[str], package_type: str) -> list[str]:
-    filenames = re.findall(r'([A-Za-z0-9_.+-]+\.(?:tgz|tar))', history)
-    normalized_aliases = [normalize_text(alias) for alias in aliases]
-    takes = {take for alias in aliases if (take := take_from_text(alias))}
-    wanted_type = (package_type or '').lower()
-    scored: list[tuple[int, str]] = []
-    for name in filenames:
-        candidate = name[:-4] + '.tgz' if name.endswith('.tar') else name
-        norm = normalize_text(candidate)
-        score = 0
-        if any(alias and alias in norm for alias in normalized_aliases):
-            score += 20
-        for take in takes:
-            if re.search(fr'(?:_T{take}(?:_|\b)|#{take}\b|Bundle_T{take}(?:_|\b))', candidate, re.IGNORECASE):
-                score += 25
-        if wanted_type == 'jhf' and re.search(r'jumbo|jhf|bundle', candidate, re.IGNORECASE):
-            score += 10
-        if wanted_type == 'wrapper' and re.search(r'wrapper|hotfix', candidate, re.IGNORECASE):
-            score += 10
-        if 'Uninstall' in history and candidate in history:
-            score += 1
-        if score > 0:
-            scored.append((score, candidate))
-    # Stable de-dupe, highest score first.
-    best: dict[str, int] = {}
-    for score, candidate in scored:
-        best[candidate] = max(score, best.get(candidate, 0))
-    return [name for name, _ in sorted(best.items(), key=lambda item: (-item[1], item[0]))]
+    """Return alias-matching identities without inferring current state or chronology."""
+    del package_type
+    candidates: set[str] = set()
+    for line in history.splitlines():
+        for candidate in package_filename_tokens(line):
+            if package_identity_matches_alias(candidate, aliases):
+                candidates.add(candidate)
+    return sorted(candidates)
 
 
-def resolve_remove_package_ref(session, run, checkpoint: dict, package: dict, step_name: str, fallback_ref: str | None) -> str:
+def installed_package_identities(table: str) -> list[str]:
+    """Parse the authoritative current installed-package table, never history."""
+    if re.search(r'[^\x09\x0a\x0d\x20-\x7e]', table):
+        raise RuntimeError('installed-package table contains unsupported control text')
+    cleaned = table.replace('\r\n', '\n')
+    if '\r' in cleaned:
+        raise RuntimeError('installed-package table contains a bare carriage return')
+    without_zero_errors = re.sub(
+        r'\b(?:Errors?\s*:\s*0|No errors|0 errors)\b',
+        '',
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    if re.search(
+        r'\b(?:errors?|failed|failure|invalid command|permission denied|'
+        r'not found|timed out|exception)\b',
+        without_zero_errors,
+        re.IGNORECASE,
+    ):
+        raise RuntimeError('installed-package table contains command error text')
+    extension_lookalike = re.search(
+        r'\.(?:tgz|tar)[A-Za-z0-9_.+-]+', cleaned, re.IGNORECASE
+    )
+    if extension_lookalike:
+        raise RuntimeError(
+            'installed-package table contains a non-package extension lookalike: '
+            f'{extension_lookalike.group(0)!r}'
+        )
+
+    states: dict[str, tuple[str, bool]] = {}
+    recognized_rows = 0
+    empty_markers = 0
+    rc_markers = 0
+    lines = cleaned.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if not line.strip():
+            index += 1
+            continue
+        if re.fullmatch(r'\s*__RC=0\s*', line):
+            rc_markers += 1
+            index += 1
+            continue
+        if re.fullmatch(r'\s*No installed packages match\s*', line, re.IGNORECASE):
+            empty_markers += 1
+            index += 1
+            continue
+        if PACKAGE_TABLE_HEADER_RE.fullmatch(line) or PACKAGE_TABLE_SEPARATOR_RE.fullmatch(line):
+            index += 1
+            continue
+        row = PACKAGE_ROW_RE.fullmatch(line)
+        if row:
+            name, status = row.groups()
+            index += 1
+        else:
+            name_row = PACKAGE_NAME_ROW_RE.fullmatch(line)
+            if not name_row or index + 1 >= len(lines):
+                raise RuntimeError(
+                    f'installed-package table contains an unknown or malformed line: {line!r}'
+                )
+            status_row = PACKAGE_STATUS_ROW_RE.fullmatch(lines[index + 1])
+            if not status_row:
+                raise RuntimeError(
+                    'installed-package table has an incomplete two-line package row: '
+                    f'{line!r}'
+                )
+            name = name_row.group(1)
+            status = status_row.group(1)
+            index += 2
+        installed = status.casefold() == 'installed'
+        normalized_name = name.casefold()
+        if normalized_name in states:
+            prior_name, _ = states[normalized_name]
+            raise RuntimeError(
+                'installed-package table has a duplicate normalized identity: '
+                f'{prior_name!r} and {name!r}'
+            )
+        recognized_rows += 1
+        states[normalized_name] = (name, installed)
+    if rc_markers > 1:
+        raise RuntimeError('installed-package table has multiple exit-status markers')
+    if empty_markers > 1:
+        raise RuntimeError('installed-package table has multiple empty-state markers')
+    if empty_markers and recognized_rows:
+        raise RuntimeError(
+            'installed-package table mixes an empty-state marker with package rows'
+        )
+    if not recognized_rows and empty_markers != 1:
+        raise RuntimeError(
+            'installed-package table has no recognized rows or valid empty-state marker'
+        )
+    return sorted(name for name, installed in states.values() if installed)
+
+
+def package_identity_is_installed(table: str, package_name: str) -> bool:
+    expected = Path(package_name).name.lower()
+    expected_stem = re.sub(r'\.(?:tgz|tar)$', '', expected)
+    for installed in installed_package_identities(table):
+        current = installed.lower()
+        current_stem = re.sub(r'\.(?:tgz|tar)$', '', current)
+        if current == expected or current_stem == expected_stem:
+            return True
+    return False
+
+
+def resolve_current_remove_identity(
+    history: str,
+    installed_table: str,
+    aliases: list[str],
+    package_type: str,
+) -> str:
+    history_candidates = package_candidates_from_history(
+        history, aliases, package_type
+    )
+    current_installed = installed_package_identities(installed_table)
+    matches = sorted(set(history_candidates).intersection(current_installed))
+    if len(matches) != 1:
+        raise RuntimeError(
+            "remove identity must be uniquely alias-resolved in CPInstLog and "
+            "currently installed on the selected member; "
+            f"history_candidates={history_candidates} "
+            f"current_installed={current_installed} matches={matches}"
+        )
+    return matches[0]
+
+
+def resolve_remove_package_ref(
+    run,
+    selected_member: dict,
+    package: dict,
+    step_name: str,
+    _fallback_ref: str | None,
+) -> str:
     aliases = package_aliases(package, step_name)
-    explicit = [filename_from_token(alias) for alias in aliases]
-    explicit = [value for value in explicit if value]
     pattern = cpinstlog_grep_pattern(aliases)
-    members = checkpoint.get('members') or []
-    if not members:
-        if explicit:
-            return explicit[0]
-        raise SystemExit('ERROR: remove package step has no members available for CPInstLog resolver')
+    gateway = (
+        selected_member.get('management_ip')
+        or selected_member.get('ip')
+    )
+    if not gateway:
+        raise SystemExit(
+            'ERROR: selected remove member has no management address for mandatory '
+            'CPInstLog resolution'
+        )
 
     safe_step = re.sub(r'[^A-Za-z0-9_.-]+', '_', step_name).strip('_') or 'remove_step'
-    all_history: list[str] = []
     print('===== CPRID CPInstLog uninstall package resolver =====')
+    print(f'Selected management member: {gateway}')
     print(f'Aliases: {aliases}')
     print(f'Pattern: {pattern}')
-    for idx, member in enumerate(members, 1):
-        gateway = member.get('management_ip') or member.get('ip') or member.get('access_ip')
-        if not gateway:
-            continue
-        remote_tmp = f'/tmp/snowlite_cpinstlog_{safe_step}_{idx}.out'
-        local_tmp = f'/var/log/tmp/snowlite_cpinstlog_{safe_step}_{idx}.out'
-        grep_cmd = (
-            "grep -hE "
-            f"{shell_quote(pattern)} "
-            "/opt/CPInstLog/collectors/da_actions_collector_*.csv* "
-            "/opt/CPInstLog/DA_Actions.xml "
-            "/opt/CPInstLog/da_cli.elg "
-            "2>/dev/null"
-        )
-        rexec = f"cprid_util -server {shell_quote(str(gateway))} rexec -rcmd /bin/sh -c {shell_quote(grep_cmd + ' > ' + remote_tmp)}"
-        run(rexec, timeout=180)
-        getfile = (
-            f"cprid_util -server {shell_quote(str(gateway))} getfile "
-            f"-remote_file {shell_quote(remote_tmp)} -local_file {shell_quote(local_tmp)}"
-        )
-        run(getfile, timeout=180)
-        history = run(f"python3 -c \"from pathlib import Path; p=Path({py_string(local_tmp)}); print(p.read_text(errors='replace') if p.exists() else '')\"", timeout=120)
-        if history.strip():
-            print(f'===== {gateway}: CPInstLog resolver output =====')
-            print(history.rstrip())
-            all_history.append(history)
-        run(f"cprid_util -server {shell_quote(str(gateway))} rexec -rcmd /bin/rm {shell_quote(remote_tmp)}", timeout=60)
-
-    candidates = package_candidates_from_history('\n'.join(all_history), aliases, package.get('package_type') or '')
-    if candidates:
-        if len(candidates) != 1:
-            raise SystemExit(
-                'ERROR: CPInstLog CPRID resolver found multiple matching package identities; '
-                f'provide an explicit full package filename or correct the request: {candidates}'
-            )
-        selected = candidates[0]
-        print(f"CDT uninstall package reference resolved from gateway CPInstLog via CPRID: {selected}")
-        return selected
-    if explicit:
-        print(f"WARNING: CPInstLog CPRID resolver found no history; using explicit filename token {explicit[0]}")
-        return explicit[0]
-    if fallback_ref:
-        fallback_name = Path(fallback_ref).name
-        if fallback_name and fallback_name != step_name:
-            print(f"WARNING: CPInstLog CPRID resolver found no history; using fallback package reference {fallback_name}")
-            return fallback_name[:-4] + '.tgz' if fallback_name.endswith('.tar') else fallback_name
-    raise SystemExit(
-        'ERROR: could not resolve remove package filename from gateway CPInstLog via CPRID. '
-        'Provide an explicit package filename or verify CPRID/SIC/CPD connectivity.'
+    remote_tmp = f'/tmp/snowlite_cpinstlog_{safe_step}.out'
+    local_tmp = f'/var/log/tmp/snowlite_cpinstlog_{safe_step}.out'
+    installed_remote_tmp = f'/tmp/snowlite_installed_{safe_step}.out'
+    installed_local_tmp = f'/var/log/tmp/snowlite_installed_{safe_step}.out'
+    grep_cmd = (
+        "grep -hE "
+        f"{shell_quote(pattern)} "
+        "/opt/CPInstLog/collectors/da_actions_collector_*.csv* "
+        "/opt/CPInstLog/DA_Actions.xml "
+        "/opt/CPInstLog/da_cli.elg "
+        "2>/dev/null"
     )
+    rexec = f"cprid_util -server {shell_quote(str(gateway))} rexec -rcmd /bin/sh -c {shell_quote(grep_cmd + ' > ' + remote_tmp)}"
+    run(rexec, timeout=180)
+    getfile = (
+        f"cprid_util -server {shell_quote(str(gateway))} getfile "
+        f"-remote_file {shell_quote(remote_tmp)} -local_file {shell_quote(local_tmp)}"
+    )
+    run(getfile, timeout=180)
+    history = run(f"python3 -c \"from pathlib import Path; p=Path({py_string(local_tmp)}); print(p.read_text(errors='replace') if p.exists() else '')\"", timeout=120)
+    if history.strip():
+        print(f'===== {gateway}: CPInstLog resolver output =====')
+        print(history.rstrip())
+    run(f"cprid_util -server {shell_quote(str(gateway))} rexec -rcmd /bin/rm {shell_quote(remote_tmp)}", timeout=60)
+
+    installed_command = (
+        "clish -c 'show installer packages installed' > "
+        f"{installed_remote_tmp} 2>&1"
+    )
+    run(
+        f"cprid_util -server {shell_quote(str(gateway))} rexec -rcmd /bin/sh -c "
+        f"{shell_quote(installed_command)}",
+        timeout=180,
+    )
+    run(
+        f"cprid_util -server {shell_quote(str(gateway))} getfile "
+        f"-remote_file {shell_quote(installed_remote_tmp)} "
+        f"-local_file {shell_quote(installed_local_tmp)}",
+        timeout=180,
+    )
+    installed_table = run(
+        f"python3 -c \"from pathlib import Path; p=Path({py_string(installed_local_tmp)}); "
+        "print(p.read_text(errors='replace') if p.exists() else '')\"",
+        timeout=120,
+    )
+    print(f'===== {gateway}: current installed-package table =====')
+    print(installed_table.rstrip())
+    run(
+        f"cprid_util -server {shell_quote(str(gateway))} rexec -rcmd /bin/rm "
+        f"{shell_quote(installed_remote_tmp)}",
+        timeout=60,
+    )
+    try:
+        selected = resolve_current_remove_identity(
+            history,
+            installed_table,
+            aliases,
+            package.get('package_type') or '',
+        )
+    except RuntimeError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
+    print(
+        "CDT uninstall package reference resolved from selected-member CPInstLog "
+        f"and current installed-package table via CPRID: {selected}"
+    )
+    return selected
 
 
 def parse_candidates(text: str) -> list[dict[str, str]]:
@@ -280,6 +468,70 @@ def controlled_candidates_text(original_text: str, rows: list[dict[str, str]], t
     return '\n'.join(output)
 
 
+def select_member_for_removal(
+    members: list[dict],
+    target_policy: str,
+    target_ip: str | None,
+    run,
+    step_name: str,
+) -> dict:
+    if target_ip:
+        matches = [
+            member
+            for member in members
+            if str(member.get("management_ip") or member.get("ip") or "") == target_ip
+        ]
+        if len(matches) != 1:
+            raise SystemExit(
+                "ERROR: removal target IP does not identify exactly one plan member"
+            )
+        return matches[0]
+
+    safe_step = re.sub(r"[^A-Za-z0-9_.-]+", "_", step_name).strip("_") or "remove"
+    matches: list[dict] = []
+    for index, member in enumerate(members, 1):
+        gateway = str(member.get("management_ip") or member.get("ip") or "")
+        if not gateway:
+            continue
+        remote_tmp = f"/tmp/snowlite_cluster_state_{safe_step}_{index}.out"
+        local_tmp = f"/var/log/tmp/snowlite_cluster_state_{safe_step}_{index}.out"
+        command = (
+            f"cprid_util -server {shell_quote(gateway)} rexec -rcmd /bin/sh -c "
+            f"{shell_quote('cphaprob state > ' + remote_tmp)}"
+        )
+        run(command, timeout=120)
+        run(
+            f"cprid_util -server {shell_quote(gateway)} getfile "
+            f"-remote_file {shell_quote(remote_tmp)} -local_file {shell_quote(local_tmp)}",
+            timeout=120,
+        )
+        output = run(
+            f"python3 -c \"from pathlib import Path; p=Path({py_string(local_tmp)}); "
+            "print(p.read_text(errors='replace') if p.exists() else '')\"",
+            timeout=120,
+        )
+        run(
+            f"cprid_util -server {shell_quote(gateway)} rexec -rcmd /bin/rm "
+            f"{shell_quote(remote_tmp)}",
+            timeout=60,
+        )
+        local_state, _peer_states, _pnotes_ok = c.parse_cluster_state(output)
+        normalized_state = local_state.lower()
+        if normalized_state not in {"active", "standby"}:
+            raise SystemExit(
+                f"ERROR: could not determine one cluster state for selected-member "
+                f"resolution on {gateway}: {local_state}"
+            )
+        if normalized_state == target_policy:
+            matches.append(member)
+    if len(matches) != 1:
+        raise SystemExit(
+            f"ERROR: expected exactly one {target_policy} plan member for removal "
+            f"identity resolution, found {len(matches)}"
+        )
+    return matches[0]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument('--activity-plan-file', required=True)
@@ -289,7 +541,13 @@ def main() -> int:
     parser.add_argument('--candidates-path')
     parser.add_argument('--target-policy', choices=['standby', 'active'], default='standby')
     parser.add_argument('--target-ip')
+    parser.add_argument('--phase', choices=['first-member', 'second-member'], required=True)
+    parser.add_argument('--resolution-output', type=Path, required=True)
+    parser.add_argument('--operation-id', required=True)
     args = parser.parse_args()
+    if re.fullmatch(r"run_[0-9a-f]{64}", args.operation_id) is None:
+        print("ERROR: invalid governed operation ID", file=sys.stderr)
+        return 2
 
     plan = json.loads(Path(args.activity_plan_file).read_text())
     checkpoint = plan.get('checkpoint', {})
@@ -351,8 +609,22 @@ def main() -> int:
     try:
         session.enter_expert(cp_args.expert_password)
         run(f'mdsenv {cma_env}', timeout=120)
+        removal_member = None
         if action == 'remove':
-            package_path = resolve_remove_package_ref(session, run, checkpoint, package, step_name, package_path)
+            removal_member = select_member_for_removal(
+                members,
+                args.target_policy,
+                args.target_ip,
+                run,
+                step_name,
+            )
+            package_path = resolve_remove_package_ref(
+                run,
+                removal_member,
+                package,
+                step_name,
+                package_path,
+            )
         plan_xml = build_deployment_plan(chg_number, package_path, package_type, step_name, action)
         plan_hex = plan_xml.encode().hex()
         write_cmd = "python3 -c \"from pathlib import Path; Path(%s).write_bytes(bytes.fromhex('%s'))\"" % (py_string(plan_path), plan_hex)
@@ -403,6 +675,17 @@ def main() -> int:
             return 2
 
         target = select_target(rows, args.target_policy, args.target_ip)
+        if removal_member is not None:
+            resolved_management_ip = str(
+                removal_member.get("management_ip") or removal_member.get("ip") or ""
+            )
+            if target["ip_address"] != resolved_management_ip:
+                print(
+                    "ERROR: CDT selected member differs from the member whose "
+                    "installed removal identity was resolved",
+                    file=sys.stderr,
+                )
+                return 2
         raw_path = candidates_path + '.raw'
         controlled_text = controlled_candidates_text(candidate_text, all_rows, target)
         raw_hex = candidate_text.encode().hex()
@@ -422,7 +705,80 @@ def main() -> int:
         if len(disabled) != 1:
             print('ERROR: controlled candidate file does not disable exactly one peer', file=sys.stderr)
             return 2
+        matching_members = [
+            member
+            for member in members
+            if (
+                member.get("management_ip") or member.get("ip")
+            ) == target["ip_address"]
+            or (
+                member.get("hostname")
+                and member.get("hostname") == target["object_name"]
+            )
+        ]
+        if len(matching_members) != 1:
+            print("ERROR: selected CDT candidate does not map to exactly one plan member", file=sys.stderr)
+            return 2
+        selected_member = matching_members[0]
+        reconciliation_host = (
+            selected_member.get("access_ip")
+            or selected_member.get("ip")
+            or selected_member.get("management_ip")
+        )
+        if not reconciliation_host:
+            print("ERROR: selected plan member has no reconciliation address", file=sys.stderr)
+            return 2
+        resolved_package_name = Path(str(package_path)).name
+        if (
+            not resolved_package_name
+            or re.fullmatch(r'[A-Za-z0-9_.+-]+', resolved_package_name) is None
+        ):
+            print('ERROR: resolved package identity is unsafe', file=sys.stderr)
+            return 2
+        plan_bytes = Path(args.activity_plan_file).read_bytes()
+        try:
+            atomic_write_private_json(
+                args.resolution_output,
+                {
+                    'schema': 1,
+                    'operation_id': args.operation_id,
+                    'change_identity': str(chg_number),
+                    'activity_plan_sha256': hashlib.sha256(plan_bytes).hexdigest(),
+                    'phase': args.phase,
+                    'step_name': step_name,
+                    'action': action,
+                    'target_host': reconciliation_host,
+                    'selected_candidate_ip': target['ip_address'],
+                    'package_name': resolved_package_name,
+                    'package_type': package_type,
+                    'target_version': str(
+                        package.get('target_version')
+                        or checkpoint.get('target_version')
+                        or ''
+                    ),
+                    'target_take': str(
+                        package.get('target_take')
+                        or checkpoint.get('target_take')
+                        or ''
+                    ),
+                    'target_build': str(package.get('target_build') or ''),
+                    'identity_source': (
+                        'gateway-cpinstlog-via-cprid'
+                        if action == 'remove'
+                        else 'immutable-activity-plan'
+                    ),
+                    'context_id': secrets.token_hex(32),
+                    'created_at_ns': time.time_ns(),
+                },
+            )
+        except FileExistsError as exc:
+            raise SystemExit(
+                "ERROR: CDT context already exists; completed or uncertain "
+                "artifact paths are immutable. Do not overwrite or retry this "
+                "phase in the same governed operation."
+            ) from exc
         print(f"Selected target: {target['object_name']} {target['ip_address']} ({target['state']})")
+        print(f'CDT reconciliation context: {args.resolution_output}')
         print(f'Raw CDT candidates backup path: {raw_path}')
         print(f'CDT plan path: {plan_path}')
         print(f'CDT candidates path: {candidates_path}')

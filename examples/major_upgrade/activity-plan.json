@@ -58,6 +58,7 @@
       "action": "upgrade",
       "package_name": "REPLACE_WITH_APPROVED_BLINK_IMAGE.tar",
       "package_type": "blink",
+      "target_build": "777",
       "source_path": "/var/log/tmp/REPLACE_WITH_APPROVED_BLINK_IMAGE.tar",
       "dest_path": "/var/log/tmp",
       "checksum_sha1": "",

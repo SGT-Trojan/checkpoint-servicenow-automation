@@ -1,6 +1,6 @@
 # What We Tested
 
-Last updated: 2026-07-27
+Last updated: 2026-08-01
 
 ## How to Read This Page
 
@@ -15,6 +15,11 @@ guidance, and it does not certify your environment.
 - **Command line** means the runner changed the lab cluster without starting
   from a ServiceNow request. The table says when a lab override or simulated
   tester gate was used.
+- **Governed ServiceNow** means the readiness and implementation workers drove
+  separate approved requests. A row states whether tester acceptance was real
+  or simulated.
+- **Standalone Python** means the Python coordinator and helpers ran directly,
+  without ServiceNow and without Ansible. Human gates are self-attested.
 - **Independently reviewed** means a second reviewer checked the saved results
   and the related code without connecting to the lab.
 - **No separately installed JHF** means Take 76 had been removed. It does not
@@ -48,6 +53,28 @@ The ServiceNow major-upgrade test checked the version, Take, policy, ClusterXL,
 PNOTEs, interfaces, recovery path, and closure. Its final report marked ICAP as
 skipped because of a bug that was fixed later. ICAP passed a separate check, but
 we do not claim that the original final report tested it.
+
+## August 2026 Live Recertification
+
+This pass repeated the maintenance from clean R81.20 snapshots through two
+independent paths:
+
+| Path | Live sequence | Gate type | Result |
+|---|---|---|---|
+| Governed ServiceNow | R81.20 to R82 build 777 with embedded Take 60, then Take 91 install and removal as separate requests | Simulated tester acceptance | Passed |
+| Standalone Python | R81.20 Take 76 install and removal, then R81.20 to R82 build 777 with embedded Take 60; no ServiceNow and no Ansible | Simulated tester acceptance | Passed |
+
+Both paths exercised real package changes, reboots, exact package/version/Take
+reconciliation, controlled failover, policy gates, and final postchecks. The
+major-upgrade runs also exercised changed-host-key stop and trusted
+reconciliation, the Blink two-choice confirmation, mixed-version policy, MVC
+on/off, final Access Control and Threat Prevention policy, and restoration of
+the original active member.
+
+The simulated tester gates used healthy live evidence and exercised the
+technical stop and resume controls. They were self-attestation, not independent
+human approval. The 2026-07-26 ServiceNow rows above remain the evidence for
+real tester tasks and platform-record closure.
 
 ## Command-Line CDT Tests
 

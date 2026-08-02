@@ -5,12 +5,18 @@
     activity_plan: "{{ lookup('file', example_plan_file) | from_json }}"
     step: remove_previous_jhf
     phase: second-member
+    operation_id: "{{ example_operation_id }}"
+    cdt_context_file: "{{ example_cdt_artifact_root }}/contexts/second-member_remove_previous_jhf.json"
+    cdt_mutation_receipt_file: "{{ example_cdt_artifact_root }}/receipts/second-member_remove_previous_jhf.json"
+    cdt_reconciliation_file: "{{ example_cdt_artifact_root }}/evidence/second-member_remove_previous_jhf.json"
 - import_playbook: ../../../ansible/playbooks/10_cdt_generate_candidates.yml
   vars: *plan
 - import_playbook: ../../../ansible/playbooks/20_cdt_execute_guarded.yml
   vars:
     <<: *plan
     checkpoint_execute_upgrade: "{{ allow_cdt_changes | default(false) }}"
+- import_playbook: ../../../ansible/playbooks/21_cdt_reconcile_member.yml
+  vars: *plan
 - import_playbook: ../../../ansible/playbooks/22_monitor_gateways.yml
 - import_playbook: ../../../ansible/playbooks/60_postcheck.yml
   vars: *plan

@@ -15,7 +15,11 @@
           - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
           - activity_plan_file | default('') | length > 0
           - step | default('') | length > 0
-        fail_msg: "CP_PASSWORD, CP_EXPERT_PASSWORD, activity_plan_file, and step are required for direct package execution."
+          - operation_id | default('') is match('^run_[0-9a-f]{64}$')
+          - mutation_intent_dir | default('') | length > 0
+        fail_msg: >-
+          CP_PASSWORD, CP_EXPERT_PASSWORD, activity_plan_file, step, a valid
+          operation_id, and mutation_intent_dir are required for direct package execution.
 
     - name: Require explicit direct execution approval
       ansible.builtin.assert:
@@ -39,6 +43,10 @@
           - "{{ phase | default('') }}"
           - --step
           - "{{ step }}"
+          - --operation-id
+          - "{{ operation_id }}"
+          - --mutation-intent-dir
+          - "{{ mutation_intent_dir }}"
           - --timeout
           - "{{ checkpoint_direct_execute_timeout | default(14400) }}"
           - --execute

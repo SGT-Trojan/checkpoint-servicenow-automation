@@ -269,7 +269,9 @@ def major_upgrade_completed_count(
                 re.I,
             )
         )
-        package_ok = package_name in packages
+        package_ok = cdt_candidates.package_identity_is_installed(
+            packages, package_name
+        )
         completed += int(version_ok and package_ok)
         states.append(
             {
@@ -363,17 +365,30 @@ def resolve_remove_identity_via_cprid(
     def run_mds(command: str, timeout: int = 120) -> str:
         return session.run(command, timeout=timeout).output
 
-    try:
-        selected = cdt_candidates.resolve_remove_package_ref(
-            session,
-            run_mds,
-            checkpoint,
-            step,
-            step_name,
-            fallback_ref,
+    members = checkpoint.get("members") or []
+    if not members:
+        raise RuntimeError("CPRID uninstall fallback has no plan members")
+    resolved_members: list[str] = []
+    for member in members:
+        try:
+            resolved_members.append(
+                cdt_candidates.resolve_remove_package_ref(
+                    run_mds,
+                    member,
+                    step,
+                    step_name,
+                    fallback_ref,
+                )
+            )
+        except SystemExit as exc:
+            raise RuntimeError(str(exc)) from exc
+    unique_resolved = sorted(set(resolved_members))
+    if len(unique_resolved) != 1:
+        raise RuntimeError(
+            "selected-member CPRID identities disagree across API fallback targets: "
+            f"{resolved_members}"
         )
-    except SystemExit as exc:
-        raise RuntimeError(str(exc)) from exc
+    selected = unique_resolved[0]
 
     if repository_matches and selected != repository_matches[0]:
         raise RuntimeError(

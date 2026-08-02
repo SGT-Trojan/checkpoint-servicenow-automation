@@ -1,0 +1,7 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+
+Standalone phase complete: simulate-tester-gate
+RECONCILIATION={"host":"192.0.2.20","result":"exact-target-confirmed"}
+Standalone phase complete: second-member
+
+The journal contains the monitoring evidence hash and both member results.

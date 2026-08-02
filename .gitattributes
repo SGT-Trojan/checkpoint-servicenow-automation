@@ -9,6 +9,9 @@
 *.service text eol=lf
 *.csv text eol=lf
 
+ansible/scripts/tests/fixtures/direct_package/parent_clish_exit_transition.txt -text
+ansible/scripts/tests/fixtures/direct_package/parent_clish_show_version.txt -text
+
 *.tgz binary
 *.tar binary
 *.gz binary

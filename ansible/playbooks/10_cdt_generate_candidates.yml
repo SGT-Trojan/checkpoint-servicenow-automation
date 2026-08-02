@@ -17,7 +17,11 @@
           - lookup('env', 'CP_PASSWORD') | length > 0
           - lookup('env', 'CP_EXPERT_PASSWORD') | length > 0
           - activity_plan_file | default('') | length > 0
-        fail_msg: "CP_PASSWORD, CP_EXPERT_PASSWORD, and activity_plan_file are required for real CDT candidate generation."
+          - operation_id | default('') | length > 0
+          - phase | default('') in ['first-member', 'second-member']
+          - step | default('') | length > 0
+          - cdt_context_file | default('') | length > 0
+        fail_msg: "Credentials and plan-bound CDT context inputs are required for real candidate generation."
 
     - name: Generate CDT deployment plan and candidates on MDS
       ansible.builtin.command:
@@ -35,6 +39,12 @@
           - "{{ cdt_target_policy | default('standby') }}"
           - --step
           - "{{ step | default('') }}"
+          - --phase
+          - "{{ phase }}"
+          - --resolution-output
+          - "{{ cdt_context_file }}"
+          - --operation-id
+          - "{{ operation_id }}"
       environment:
         CP_PASSWORD: "{{ lookup('env', 'CP_PASSWORD') }}"
         CP_EXPERT_PASSWORD: "{{ lookup('env', 'CP_EXPERT_PASSWORD') }}"

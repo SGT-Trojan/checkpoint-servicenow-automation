@@ -73,6 +73,41 @@ class ParserFixtureTests(unittest.TestCase):
                 fixture("packages_malformed.txt"), PACKAGE
             )
         )
+        wrapper = "Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T76_FULL.tar"
+        imported = (
+            "Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T76_FULL.tgz"
+            " | Status: Imported"
+        )
+        self.assertTrue(
+            upgrade.package_table_has_ready_package(imported, wrapper)
+        )
+        self.assertFalse(
+            upgrade.package_table_has_ready_package(
+                imported.replace(".tgz", ".tgz.bak"), wrapper
+            )
+        )
+        self.assertFalse(
+            upgrade.package_table_has_ready_package(
+                imported.replace(".tgz", ".tgz.bak"),
+                imported.split(" |", 1)[0],
+            )
+        )
+        self.assertFalse(
+            upgrade.package_table_has_ready_package(
+                imported.replace(".tgz", ".tgz.bak"),
+                "Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T76_FULL",
+            )
+        )
+        self.assertTrue(
+            upgrade.package_table_has_ready_package(
+                "Take 76 | Status: Imported", wrapper
+            )
+        )
+        self.assertFalse(
+            upgrade.package_table_has_ready_package(
+                imported.replace("Imported", "Not Imported"), wrapper
+            )
+        )
 
     def test_installed_target_requires_exact_package_take_and_positive_state(self) -> None:
         installed = fixture("packages_installed.txt")

@@ -106,7 +106,11 @@ class PackageIdentityTests(unittest.TestCase):
             )
 
         self.assertEqual(selected, package)
-        resolver.assert_called_once()
+        self.assertEqual(resolver.call_count, 2)
+        self.assertEqual(
+            [call.args[1]["ip"] for call in resolver.call_args_list],
+            ["192.0.2.20", "192.0.2.21"],
+        )
 
     def test_cprid_and_repository_disagreement_fails_closed(self) -> None:
         repository_package = "Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T76_FULL.tgz"
@@ -190,12 +194,13 @@ class WorkspaceAndReconciliationTests(unittest.TestCase):
         step = {"package_name": package}
         old_version = "Product version Check Point Gaia R81.20"
         new_version = "Product version Check Point Gaia R82"
-        installed = f"Blink Images\n{package} Blink Version"
+        installed = f"Blink Images\n{package} | Status: Installed"
+        empty = "No installed packages match"
 
         with mock.patch.object(
             api_backend,
             "cprid_member_output",
-            side_effect=[new_version, installed, old_version, ""],
+            side_effect=[new_version, installed, old_version, empty],
         ):
             self.assertTrue(
                 api_backend.major_upgrade_completed_despite_api_failure(
@@ -228,12 +233,64 @@ class WorkspaceAndReconciliationTests(unittest.TestCase):
         with mock.patch.object(
             api_backend,
             "cprid_member_output",
-            side_effect=[new_version, installed, new_version, "different-image.tgz"],
+            side_effect=[
+                new_version,
+                installed,
+                new_version,
+                "different-image.tgz | Status: Installed",
+            ],
         ):
             self.assertFalse(
                 api_backend.major_upgrade_completed_despite_api_failure(
                     mock.Mock(), checkpoint, step, "second-member", 1
                 )
+            )
+
+    def test_major_reconciliation_rejects_untrusted_package_tables(self) -> None:
+        package = "blink_image_1.1_Check_Point_R82_T777_JHF_T60_SecurityGateway.tgz"
+        checkpoint = {
+            "target_version": "R82",
+            "members": [{"management_ip": "192.0.2.20"}],
+        }
+        step = {"package_name": package}
+        version = "Product version Check Point Gaia R82"
+        installed = f"{package} | Status: Installed"
+        for output in (
+            "",
+            "   ",
+            "Error: unavailable",
+            "malformed output",
+            f"{installed}\nmalformed output",
+            "No installed packages match\nmalformed output",
+            "Installed Packages\nmalformed output",
+            f"No installed packages match\n{installed}",
+            "No installed packages match\nNo installed packages match",
+            f"{package} | Sta\x1b[31mtus: Installed",
+            f"{installed}\n{installed}",
+            f"{installed}\n{package.lower()} | Status: Installed",
+        ):
+            with (
+                self.subTest(output=output),
+                mock.patch.object(
+                    api_backend,
+                    "cprid_member_output",
+                    side_effect=[version, output],
+                ),
+                self.assertRaises(RuntimeError),
+            ):
+                api_backend.major_upgrade_completed_count(
+                    mock.Mock(), checkpoint, step
+                )
+        with mock.patch.object(
+            api_backend,
+            "cprid_member_output",
+            side_effect=[version, "No installed packages match"],
+        ):
+            self.assertEqual(
+                api_backend.major_upgrade_completed_count(
+                    mock.Mock(), checkpoint, step
+                )[0],
+                0,
             )
 
 

@@ -1,0 +1,8 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+first-member CDT removal: completed
+Member: EXAMPLE-GW-B
+Reboot observed: yes
+Trusted reconnect: confirmed
+Stabilization interval: 300 seconds completed
+Exact Take 91 package present: no
+Cluster gate: healthy before failover

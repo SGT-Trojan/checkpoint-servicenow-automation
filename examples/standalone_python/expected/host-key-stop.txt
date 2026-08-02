@@ -1,0 +1,6 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+
+ERROR: first-member stopped on changed host key; verify the new fingerprint and retry with --host-key-evidence
+
+The member phase is not complete. Verify the new fingerprint through a trusted
+channel before replacing the known_hosts entry and recording evidence.

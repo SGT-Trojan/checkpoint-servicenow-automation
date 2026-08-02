@@ -169,6 +169,19 @@ def run_readiness_playbook(ansible: Path, playbook: str, vars_path: Path, env: d
     return run_playbook(ansible, playbook, vars_path, env, log_path, extra or {})
 
 
+def readiness_checks(plan: dict[str, Any]) -> list[tuple[str, str, str, dict[str, Any]]]:
+    checks: list[tuple[str, str, str, dict[str, Any]]] = [
+        ("validate-plan", "01_validate_activity_plan.yml", "", {}),
+        ("init", "00_precheck.yml", "", {}),
+        ("cluster-state-capture", "11_capture_cluster_state.yml", "", {}),
+        ("deployment-agent-readiness", "07_validate_deployment_agent.yml", "", {}),
+        ("stage-files", "06_validate_mds_package.yml", "", {}),
+    ]
+    for step in plan.get("package_steps", []):
+        checks.append(("first-member", "08_validate_package_prerequisites.yml", step["name"], {}))
+    return checks
+
+
 def validate_request(sn: ServiceNowClient, task: dict[str, Any], args: argparse.Namespace) -> tuple[bool, str, Path]:
     ritm_id = ref_value(task.get("request_item"))
     if not ritm_id:
@@ -221,16 +234,7 @@ def validate_request(sn: ServiceNowClient, task: dict[str, Any], args: argparse.
     vars_path = run_dir / f"{chg_number}_vars.json"
     plan_path.write_text(json.dumps(plan, indent=2) + "\n")
 
-    checks: list[tuple[str, str, str, dict[str, Any]]] = [
-        ("validate-plan", "01_validate_activity_plan.yml", "", {}),
-        ("init", "00_precheck.yml", "", {}),
-        ("deployment-agent-readiness", "07_validate_deployment_agent.yml", "", {}),
-        ("stage-files", "06_validate_mds_package.yml", "", {}),
-    ]
-    for step in plan.get("package_steps", []):
-        checks.append(("first-member", "08_validate_package_prerequisites.yml", step["name"], {}))
-
-    for phase, playbook, step, extra in checks:
+    for phase, playbook, step, extra in readiness_checks(plan):
         write_vars(plan, plan_path, vars_path, phase, step)
         rc = run_readiness_playbook(ansible, playbook, vars_path, env, log_dir, phase, step, extra)
         if rc != 0:

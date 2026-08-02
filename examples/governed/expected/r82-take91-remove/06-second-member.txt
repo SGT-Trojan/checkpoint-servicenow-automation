@@ -1,0 +1,9 @@
+SYNTHETIC OUTPUT SHAPE - NOT LAB EVIDENCE
+Resume change identity: <same-change>
+Resume boundary: second-member
+Resume discovery: first observation of Take 60 on EXAMPLE-GW-B
+Second member selected: EXAMPLE-GW-A only
+Second-member CDT removal and stabilization: completed
+Exact Take 91 package present on either member: no
+restore-original-active: EXAMPLE-GW-A ACTIVE, EXAMPLE-GW-B STANDBY
+postcheck: errors=[] package_state_errors=[]

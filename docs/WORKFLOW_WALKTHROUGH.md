@@ -104,6 +104,29 @@ MVC off. Major upgrades require a two-member cluster.
 A Deployment Agent update uses a shorter path. It updates both members without
 failover or a tester gate, then checks the installed build on each member.
 
+Before the first runner starts, the worker assigns the CHG a random operation
+ID in the form `run_<64 lowercase hex characters>`. The worker saves that ID in
+its private state and passes the same value to every tester or remediation
+resume. The runner locks `runs/operations/<operation-id>/`, stores the original
+authorized plan there, and rejects a resume if the current ticket or package
+authorization produces a different digest. A manual `--start-at` invocation
+must include the original `--operation-id`.
+
+Every executing direct package step also requires the operation's private
+mutation-intent directory. Intent filenames are SHA-256 hashes of the operation,
+phase, step, and host, so ticket text and addresses are not used as pathnames.
+Once an intent exists, that host and step can reconcile only; the helper cannot
+dispatch the mutation again.
+
+For a Deployment Agent update, each member has its own intent. The helper
+requires a numeric requested minimum build and a unique observed current build.
+An equal or higher build is an authorized idempotent no-op and is never
+downgraded. Only a lower build records the minimum and observed pre-dispatch
+build in the intent before `installer agent install`. It dispatches once, opens
+a fresh session, and requires the observed build to meet or exceed the requested
+minimum. A disconnect, missing return code, lower build, or ambiguous/malformed
+status leaves the intent in place. A retry performs reconciliation only.
+
 ## Phase 6 - Test the changed member
 
 The worker records `waiting_tester` and stops. A tester checks traffic, services,

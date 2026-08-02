@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import base64
+import fcntl
 import getpass
 import os
 import pty
@@ -19,7 +20,9 @@ import select
 import shlex
 import signal
 import socket
+import struct
 import sys
+import termios
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -38,6 +41,11 @@ DEFAULT_SUPPORT_SCRIPT = str(
     / "gateway_support_commands.example.sh"
 )
 PROMPT_RE = re.compile(rb"(?m)(?:(?:\x1b\][^\x07]*\x07)?\[Expert@[^\r\n]+:\d+\]#\s*$|(?:^|\r?\n)[A-Za-z0-9_.-]+>\s*$)")
+CLISH_PROMPT_RE = re.compile(rb"(?m)(?:^|\r?\n)[A-Za-z0-9_.-]+>\s*$")
+EXPERT_PROMPT_RE = re.compile(rb"(?m)(?:\x1b\][^\x07]*\x07)?\[Expert@[^\r\n]+:\d+\]#\s*$")
+CLISH_FINAL_PROMPT_QUIET_SECONDS = 0.25
+PTY_ROWS = 24
+PTY_COLUMNS = 512
 PASSWORD_RE = re.compile(rb"(?i)(?:password|passcode).*:\s*$")
 MORE_RE = re.compile(rb"-- More --|Press any key to continue", re.I)
 
@@ -121,6 +129,7 @@ class CheckPointError(RuntimeError):
 class CommandResult:
     command: str
     output: str
+    completion: str = ""
 
 
 @dataclass
@@ -165,6 +174,8 @@ class SshPty:
         self.pid: int | None = None
         self.fd: int | None = None
         self.buffer = b""
+        self._session_mode = "unknown"
+        self._expert_password: str | None = None
 
     def connect(self) -> None:
         argv = [
@@ -177,6 +188,10 @@ class SshPty:
             "PreferredAuthentications=password",
             "-o",
             "PubkeyAuthentication=no",
+            "-o",
+            "ServerAliveInterval=15",
+            "-o",
+            "ServerAliveCountMax=3",
         ]
         if self.ssh_proxy:
             helper = Path(__file__).resolve()
@@ -195,6 +210,11 @@ class SshPty:
             os.execvp(argv[0], argv)
         self.pid = pid
         self.fd = fd
+        fcntl.ioctl(
+            fd,
+            termios.TIOCSWINSZ,
+            struct.pack("HHHH", PTY_ROWS, PTY_COLUMNS, 0, 0),
+        )
         self._expect_login()
 
     def close(self) -> None:
@@ -242,6 +262,11 @@ class SshPty:
                     self._write(self.password + "\n")
                     self.buffer = b""
                 elif PROMPT_RE.search(self.buffer):
+                    self._session_mode = (
+                        "expert"
+                        if EXPERT_PROMPT_RE.search(self.buffer)
+                        else "clish"
+                    )
                     self.buffer = b""
                     return
         raise CheckPointError(f"{self.host}: timed out waiting for login prompt")
@@ -289,21 +314,181 @@ class SshPty:
                 continue
             if PROMPT_RE.search(out):
                 text = strip_ansi(out.decode(errors="replace"))
-                return CommandResult("<redacted>" if redact_command else command, text)
+                return CommandResult(
+                    "<redacted>" if redact_command else command,
+                    text,
+                )
         raise CheckPointError(f"{self.host}: command timed out: {command}")
 
-    def enter_expert(self, expert_password: str, *, timeout: int = 30) -> None:
+    def _read_until_pattern(
+        self,
+        pattern: re.Pattern[bytes],
+        *,
+        deadline: float,
+        context: str,
+    ) -> bytes:
+        out = b""
+        while time.time() < deadline:
+            chunk = self._read_some(min(1, max(0.0, deadline - time.time())))
+            if not chunk:
+                continue
+            out += chunk
+            if MORE_RE.search(out[-200:]):
+                self._write(" ")
+                continue
+            if pattern.search(out):
+                return out
+        self._session_mode = "unknown"
+        raise CheckPointError(f"{self.host}: timed out waiting for {context}")
+
+    def _parse_parent_clish_output(
+        self,
+        transcript: bytes,
+        expected_command: str,
+        *,
+        expected_echo_count: int = 1,
+    ) -> str:
+        if expected_echo_count not in {1, 2}:
+            raise ValueError("parent Clish echo count must be one or two")
+        decoded = transcript.decode(errors="replace")
+        normalized = decoded.replace("\r\n", "\n").replace("\r", "\n")
+        text = strip_ansi(normalized)
+        prompt_re = re.compile(r"(?m)^[A-Za-z0-9_.-]+>[ \t]*$")
+        prompts = list(prompt_re.finditer(text))
+        echoes = list(
+            re.finditer(rf"(?m)^{re.escape(expected_command)}$", text)
+        )
+        if (
+            len(prompts) != 1
+            or prompts[0].end() != len(text)
+            or len(echoes) != expected_echo_count
+        ):
+            raise CheckPointError(
+                f"{self.host}: ambiguous or truncated parent Clish output: "
+                f"{expected_command}"
+            )
+
+        echo_block = "\n".join(
+            [expected_command] * expected_echo_count
+        ) + "\n"
+        before_prompt = text[:prompts[0].start()]
+        if not before_prompt.startswith(echo_block):
+            raise CheckPointError(
+                f"{self.host}: non-adjacent or ambiguous parent Clish echo: "
+                f"{expected_command}"
+            )
+        return before_prompt[len(echo_block):].strip("\n")
+
+
+    def _read_parent_clish_command(
+        self,
+        command: str,
+        *,
+        deadline: float,
+    ) -> str:
+        self.sendline(command)
+        transcript = self._read_until_pattern(
+            CLISH_PROMPT_RE,
+            deadline=deadline,
+            context=f"parent Clish prompt after {command}",
+        )
+        quiet_deadline = min(
+            deadline,
+            time.time() + CLISH_FINAL_PROMPT_QUIET_SECONDS,
+        )
+        while time.time() < quiet_deadline:
+            trailing = self._read_some(
+                min(0.1, max(0.0, quiet_deadline - time.time()))
+            )
+            if trailing and trailing.strip(b" \t\r\n"):
+                self._session_mode = "unknown"
+                raise CheckPointError(
+                    f"{self.host}: output followed parent Clish prompt: {command}"
+                )
+        return self._parse_parent_clish_output(transcript, command)
+
+    def _read_parent_clish_command_with_confirmation(
+        self,
+        command: str,
+        *,
+        confirmation_pattern: re.Pattern[bytes],
+        confirmation_response: str,
+        deadline: float,
+    ) -> str:
+        self.sendline(command)
+        transcript = b""
+        confirmation_sent = False
+        while time.time() < deadline:
+            chunk = self._read_some(min(1, max(0.0, deadline - time.time())))
+            if chunk:
+                transcript += chunk
+            if MORE_RE.search(transcript[-200:]):
+                self._write(" ")
+                continue
+            confirmations = list(confirmation_pattern.finditer(transcript))
+            if len(confirmations) > 1:
+                self._session_mode = "unknown"
+                raise CheckPointError(
+                    f"{self.host}: ambiguous parent Clish confirmation: {command}"
+                )
+            if confirmations and not confirmation_sent:
+                self.sendline(confirmation_response)
+                confirmation_sent = True
+                continue
+            if CLISH_PROMPT_RE.search(transcript):
+                break
+        else:
+            self._session_mode = "unknown"
+            raise CheckPointError(
+                f"{self.host}: timed out waiting for parent Clish prompt after {command}"
+            )
+
+        quiet_deadline = min(
+            deadline,
+            time.time() + CLISH_FINAL_PROMPT_QUIET_SECONDS,
+        )
+        while time.time() < quiet_deadline:
+            trailing = self._read_some(
+                min(0.1, max(0.0, quiet_deadline - time.time()))
+            )
+            if trailing and trailing.strip(b" \t\r\n"):
+                self._session_mode = "unknown"
+                raise CheckPointError(
+                    f"{self.host}: output followed parent Clish prompt: {command}"
+                )
+        output = self._parse_parent_clish_output(transcript, command)
+        if not confirmation_sent:
+            self._session_mode = "unknown"
+            raise CheckPointError(
+                f"{self.host}: exact parent Clish confirmation was not received: "
+                f"{command}"
+            )
+        return output
+
+
+    def _enter_expert_with_password(
+        self,
+        expert_password: str,
+        *,
+        deadline: float,
+    ) -> None:
+        if self._session_mode != "clish":
+            raise CheckPointError(
+                f"{self.host}: cannot enter expert mode from an unknown session state"
+            )
         self.buffer = b""
         self.sendline("expert")
-        deadline = time.time() + timeout
         out = b""
         sent_password = False
         nudged = False
         sent_at = 0.0
         while time.time() < deadline:
-            chunk = self._read_some(1)
+            chunk = self._read_some(min(1, max(0.0, deadline - time.time())))
             if chunk:
                 out += chunk
+            if b"Wrong password" in out:
+                self._session_mode = "unknown"
+                raise CheckPointError(f"{self.host}: wrong expert password")
             if not sent_password and PASSWORD_RE.search(out):
                 self._write(expert_password + "\n")
                 out = b""
@@ -313,12 +498,141 @@ class SshPty:
             if sent_password and not nudged and time.time() - sent_at > 3:
                 self._write("\n")
                 nudged = True
-            if PROMPT_RE.search(out):
+            if EXPERT_PROMPT_RE.search(out):
+                self._session_mode = "expert"
                 self.drain_pending()
                 return
-            if b"Wrong password" in out:
-                raise CheckPointError(f"{self.host}: wrong expert password")
+            if CLISH_PROMPT_RE.search(out):
+                self._session_mode = "unknown"
+                raise CheckPointError(
+                    f"{self.host}: expert transition returned to Clish"
+                )
+        self._session_mode = "unknown"
         raise CheckPointError(f"{self.host}: timed out entering expert mode")
+
+    def run_interactive_clish(
+        self,
+        command: str,
+        *,
+        acquire_lock: bool,
+        timeout: int = 60,
+        confirmation_pattern: re.Pattern[bytes] | None = None,
+        confirmation_response: str | None = None,
+    ) -> CommandResult:
+        """Run one command in the parent login Clish.
+
+        Prompt completion is provisional because Clish exposes no shell exit
+        status. Callers must retain exact post-operation reconciliation.
+        """
+        if not command or any(char in command for char in "\r\n\x00"):
+            raise CheckPointError(f"{self.host}: invalid interactive Clish command")
+        if (confirmation_pattern is None) != (confirmation_response is None):
+            raise CheckPointError(
+                f"{self.host}: confirmation pattern and response must be provided together"
+            )
+        if confirmation_response is not None and (
+            not confirmation_response
+            or any(char in confirmation_response for char in "\r\n\x00")
+        ):
+            raise CheckPointError(
+                f"{self.host}: invalid parent Clish confirmation response"
+            )
+        if self._session_mode != "expert" or self._expert_password is None:
+            raise CheckPointError(
+                f"{self.host}: parent Clish command requires an authenticated "
+                "expert session"
+            )
+
+        self.drain_pending()
+        self.buffer = b""
+        deadline = time.time() + timeout
+
+        self.sendline("exit")
+        transition = self._read_until_pattern(
+            CLISH_PROMPT_RE,
+            deadline=deadline,
+            context="parent login Clish prompt",
+        )
+        try:
+            transition_output = self._parse_parent_clish_output(
+                transition,
+                "exit",
+                expected_echo_count=2,
+            )
+        except CheckPointError:
+            self._session_mode = "unknown"
+            raise
+        if transition_output:
+            self._session_mode = "unknown"
+            raise CheckPointError(
+                f"{self.host}: unexpected output while returning to parent Clish"
+            )
+        self._session_mode = "clish"
+
+        if acquire_lock:
+            lock_output = self._read_parent_clish_command(
+                "lock database override",
+                deadline=deadline,
+            )
+            lock_failure_markers = (
+                "CLINFR",
+                "error",
+                "failed",
+                "cannot",
+                "can not",
+                "denied",
+            )
+            if any(
+                marker.lower() in lock_output.lower()
+                for marker in lock_failure_markers
+            ):
+                try:
+                    self._enter_expert_with_password(
+                        self._expert_password,
+                        deadline=deadline,
+                    )
+                except CheckPointError as exc:
+                    raise CheckPointError(
+                        f"{self.host}: could not acquire Gaia configuration lock "
+                        f"and could not re-enter expert mode: {exc}\n{lock_output}"
+                    ) from exc
+                raise CheckPointError(
+                    f"{self.host}: could not acquire Gaia configuration lock:\n"
+                    f"{lock_output}"
+                )
+
+        if confirmation_pattern is None:
+            command_output = self._read_parent_clish_command(
+                command,
+                deadline=deadline,
+            )
+        else:
+            command_output = self._read_parent_clish_command_with_confirmation(
+                command,
+                confirmation_pattern=confirmation_pattern,
+                confirmation_response=confirmation_response or "",
+                deadline=deadline,
+            )
+        self._enter_expert_with_password(
+            self._expert_password,
+            deadline=deadline,
+        )
+        return CommandResult(
+            command,
+            command_output,
+            completion="clish-prompt",
+        )
+
+    def enter_expert(self, expert_password: str, *, timeout: int = 30) -> None:
+        if self._session_mode == "expert":
+            self._expert_password = expert_password
+            self.drain_pending()
+            return
+        self._enter_expert_with_password(
+            expert_password,
+            deadline=time.time() + timeout,
+        )
+        self._expert_password = expert_password
 
 
 def strip_ansi(value: str) -> str:
@@ -575,18 +889,41 @@ def package_lookup_terms(package: str) -> list[str]:
 
 
 def package_table_has_ready_package(output: str, package: str) -> bool:
-    terms = package_lookup_terms(package)
+    filename = Path(package).name.lower()
+    stem = re.sub(r"\.(?:tgz|tar)$", "", filename, flags=re.IGNORECASE)
+    identity_patterns = [re.escape(filename)]
+    if stem != filename:
+        identity_patterns.append(rf"{re.escape(stem)}\.(?:tgz|tar)")
+    identity = re.compile(
+        rf"(?<![A-Za-z0-9_.-])(?:{'|'.join(identity_patterns)})(?![A-Za-z0-9_.-])",
+        re.IGNORECASE,
+    )
+    term_patterns = [
+        re.compile(
+            rf"(?<![A-Za-z0-9_.-]){re.escape(term)}(?![A-Za-z0-9_.-])",
+            re.IGNORECASE,
+        )
+        for term in package_lookup_terms(package)
+    ]
     negative_statuses = (
         "not downloaded",
         "not installed",
+        "not imported",
         "unavailable",
         "not available",
         "failed",
     )
-    ready_statuses = ("downloaded", "installed", "available for install")
+    ready_statuses = (
+        "downloaded",
+        "imported",
+        "installed",
+        "available for install",
+    )
     for line in output.splitlines():
         lower = line.lower()
-        if not any(term in lower for term in terms):
+        if identity.search(line) is None and not any(
+            pattern.search(line) for pattern in term_patterns
+        ):
             continue
         if any(status in lower for status in negative_statuses):
             continue
