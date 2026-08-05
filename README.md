@@ -152,7 +152,7 @@ ansible/
   inventory/                 Example controller inventory
   playbooks/                 Readiness, execution, failover, and postcheck phases
   scripts/                   Target resolution and backend helper programs
-  scripts/tests/             Offline orchestration and adversarial tests
+  scripts/tests/             Offline orchestration and failure-path tests
 docs/                        Architecture, workflow, and ServiceNow build guides
 systemd/                     Long-running worker service definitions
 test_inputs/                 Sanitized activity-plan examples
@@ -176,9 +176,7 @@ done
 python3 tools/scan_public_repository.py .
 ```
 
-GitHub Actions runs the protected `test` and `secrets` checks for every pull
-request. Public exports are generated from an allowlisted source tree and carry
-a SHA-256 manifest.
+GitHub Actions runs the `test` and `secrets` checks for every pull request.
 
 ## Limits
 

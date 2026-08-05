@@ -1,7 +1,7 @@
 ---
 offline: true
 skip_list:
-  # Imported workflow fragments predate the lint gate and remain syntax checked.
+  # Playbook filenames already identify each workflow phase; syntax checks cover every file.
   - name[play]
   # Long Jinja assertions and command arguments are clearer as single YAML scalars.
   - yaml[line-length]

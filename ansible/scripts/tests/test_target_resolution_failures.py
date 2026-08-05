@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adversarial regression fixtures for managed-target resolution.
+"""Regression tests for managed-target resolution failures.
 
 Covers missing member identities, IPv6 targets, preferred-domain ambiguity,
 unknown domains, and stable command-line exit codes.
@@ -60,13 +60,12 @@ class FixtureSession:
         return SimpleNamespace(output=json.dumps(data))
 
 
-class AdversarialResolverTests(unittest.TestCase):
+class TargetResolutionFailureTests(unittest.TestCase):
     def test_member_without_name_must_fail_closed(self):
-        """K1 REPRODUCTION: a cluster member lacking a name must raise INCOMPLETE.
+        """Reject a member without a name instead of inventing an identity.
 
-        Reviewed commit instead fabricates 'member-N' (discover_checkpoint_targets.py,
-        members(): name defaults to f'member-{index}', so the 'if not name' guard can
-        never fire) and persists the invented hostname to the change-request record.
+        A fabricated hostname could be persisted to the change request and
+        later direct maintenance at the wrong managed object.
         """
         domain = m.Domain("D", "CMA", "198.51.100.10")
         objects = [
@@ -124,7 +123,7 @@ class AdversarialResolverTests(unittest.TestCase):
         self.assertEqual(caught.exception.exit_code, m.INVALID)
 
     def test_usage_error_has_distinct_exit_code(self):
-        """K3: malformed invocation must not be reported as target-not-found."""
+        """Keep malformed invocation distinct from a target lookup failure."""
         proc = subprocess.run(
             [sys.executable, str(MODULE)],
             capture_output=True, text=True,
