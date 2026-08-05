@@ -20,8 +20,8 @@ guidance, and it does not certify your environment.
   or simulated.
 - **Standalone Python** means the Python coordinator and helpers ran directly,
   without ServiceNow and without Ansible. Human gates are self-attested.
-- **Independently reviewed** means a second reviewer checked the saved results
-  and the related code without connecting to the lab.
+- **Results reviewed** means the retained logs were checked against the related
+  code path without reconnecting to the lab.
 - **No separately installed JHF** means Take 76 had been removed. It does not
   identify a product Take numbered 0 or mean that the base Gaia image has no
   fixes.
@@ -45,9 +45,9 @@ tester gate was used.
 
 | Activity | Starting state | Ending state | Live controls exercised | Result |
 |---|---|---|---|---|
-| JHF install | R81.20 build 634, no separately installed JHF | R81.20 build 634, Take 76 on both members | Automated readiness, approvals, guarded one-member CDT execution, real reboots, tester gate, final validation, closure | Passed; independently reviewed |
-| JHF uninstall | R81.20 build 634, Take 76 | R81.20 build 634, no separately installed JHF on both members | `Take 76` alias resolution through CPRID/CPInstLog, guarded rolling removal, real reboots, tester gate, final validation, closure | Passed; independently reviewed |
-| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, embedded Take 60 on both members | Mixed-version policy gate, MVC on/off, rolling upgrade, controlled failover, real tester gate, SSH-host-key remediation tasks, phase-specific resume, final policy and closure | Passed; independently reviewed |
+| JHF install | R81.20 build 634, no separately installed JHF | R81.20 build 634, Take 76 on both members | Automated readiness, approvals, guarded one-member CDT execution, real reboots, tester gate, final validation, closure | Passed; results reviewed against retained logs |
+| JHF uninstall | R81.20 build 634, Take 76 | R81.20 build 634, no separately installed JHF on both members | `Take 76` alias resolution through CPRID/CPInstLog, guarded rolling removal, real reboots, tester gate, final validation, closure | Passed; results reviewed against retained logs |
+| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, embedded Take 60 on both members | Mixed-version policy gate, MVC on/off, rolling upgrade, controlled failover, real tester gate, SSH-host-key remediation tasks, phase-specific resume, final policy and closure | Passed; results reviewed against retained logs |
 
 The ServiceNow major-upgrade test checked the version, Take, policy, ClusterXL,
 PNOTEs, interfaces, recovery path, and closure. Its final report marked ICAP as
@@ -83,9 +83,9 @@ R81.20 baseline and used a lab override and simulated tester gates.
 
 | Activity | Starting state | Ending state | Result |
 |---|---|---|---|
-| Take 76 install | R81.20 build 634, no separately installed JHF | R81.20 Take 76 on both members | Passed; real rolling CDT execution and reboots; independently reviewed |
-| Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF on both members | Passed; authoritative CPInstLog identity resolution and rolling CDT removal; independently reviewed |
-| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | Passed; MVC, policy, failover, support diff, ownership restoration, ICAP and postcheck; independently reviewed |
+| Take 76 install | R81.20 build 634, no separately installed JHF | R81.20 Take 76 on both members | Passed; real rolling CDT execution and reboots; results reviewed against retained logs |
+| Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF on both members | Passed; authoritative CPInstLog identity resolution and rolling CDT removal; results reviewed against retained logs |
+| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | Passed; MVC, policy, failover, support diff, ownership restoration, ICAP and postcheck; results reviewed against retained logs |
 
 A later command-line test on 2026-07-27 found R82 Take 107 as Recommended. It
 downloaded and checked the 2.49 GB package, copied it to the MDS, and installed
@@ -93,7 +93,7 @@ it on one standby member at a time:
 
 | Activity | Starting state | Ending state | Result |
 |---|---|---|---|
-| Recommended JHF install | R82 build 777, Take 60 | R82 build 777, Take 107 on both members | Passed with real reboots, controlled failover, policy and strict health checks; independently reviewed |
+| Recommended JHF install | R82 build 777, Take 60 | R82 build 777, Take 107 on both members | Passed with real reboots, controlled failover, policy and strict health checks; results reviewed against retained logs |
 
 ## Command-Line Management API Tests
 
@@ -105,9 +105,9 @@ between the two backends.
 
 | Activity | Starting state | Ending state | Execution path | Result |
 |---|---|---|---|---|
-| Take 76 install | R81.20 build 634, no separately installed JHF | R81.20 Take 76 | API repository import, verification, and cluster execution | Passed; independently reviewed |
-| Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF | API inventory and CPRID/CPInstLog identity resolution, then guarded direct CPUSE member removal | Passed; independently reviewed; explicitly not an API-only uninstall claim |
-| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | API package execution plus mixed-version policy, MVC, explicit failover, final policy, restoration, and postcheck gates | Passed; independently reviewed |
+| Take 76 install | R81.20 build 634, no separately installed JHF | R81.20 Take 76 | API repository import, verification, and cluster execution | Passed; results reviewed against retained logs |
+| Take 76 uninstall | R81.20 Take 76 | R81.20 build 634, no separately installed JHF | API inventory and CPRID/CPInstLog identity resolution, then guarded direct CPUSE member removal | Passed; results reviewed against retained logs; explicitly not an API-only uninstall claim |
+| Major upgrade | R81.20 build 634, no separately installed JHF | R82 build 777, Take 60 | API package execution plus mixed-version policy, MVC, explicit failover, final policy, restoration, and postcheck gates | Passed; results reviewed against retained logs |
 
 The tested API could not safely remove the package one member at a time. The
 workflow therefore uses its clearly marked direct CPUSE fallback. That fallback
