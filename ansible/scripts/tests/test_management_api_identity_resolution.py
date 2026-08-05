@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adversarial regression fixtures for the Management API deployment backend.
+"""Regression tests for Management API package identity resolution.
 
 Covers rolling-uninstall identity resolution, divergent member inventories,
 absent packages, and JHF Take parsing precedence.
@@ -36,13 +36,11 @@ T76_SPECIAL = "Check_Point_R81_20_JUMBO_HF_MAIN_Bundle_T76_SPECIAL_FULL.tgz"
 
 class UnequalInventoryUninstallTests(unittest.TestCase):
     def test_second_member_uninstall_must_resolve_unique_union_identity(self):
-        """A1 REPRODUCTION: after the first-member removal, the package remains
-        on exactly one member. Resolution must still succeed because the
-        identity is unique across the cluster inventory (union), otherwise the
-        API rolling uninstall can never complete its second member.
+        """Resolve the remaining package after the first member is clean.
 
-        Reviewed commit requires the package in the INTERSECTION (installed on
-        every member), so the second-member phase always raises."""
+        Rolling removal needs the unique identity from the union of both member
+        inventories so it can complete the second-member phase.
+        """
         data = inventory([], [T76])  # member 1 already cleaned
         step = {"action": "remove", "package_name": "Take 76"}
         self.assertEqual(
@@ -51,8 +49,7 @@ class UnequalInventoryUninstallTests(unittest.TestCase):
         )
 
     def test_second_member_uninstall_explicit_full_identity(self):
-        """A1 companion: explicit full package identity in the phase-2
-        (unequal) inventory must also resolve."""
+        """Accept an exact package identity when only the second member has it."""
         data = inventory([], [T76])
         step = {"action": "remove", "package_name": T76}
         self.assertEqual(
@@ -61,8 +58,7 @@ class UnequalInventoryUninstallTests(unittest.TestCase):
         )
 
     def test_divergent_member_inventories_still_fail_closed(self):
-        """A1 guard: uniqueness must not be weakened — two DIFFERENT take-76
-        identities across members is ambiguity and must raise."""
+        """Reject two distinct Take 76 identities as ambiguous."""
         data = inventory([T76], [T76_SPECIAL])
         step = {"action": "remove", "package_name": "Take 76"}
         with self.assertRaises(RuntimeError):
@@ -77,10 +73,11 @@ class UnequalInventoryUninstallTests(unittest.TestCase):
 
 class TakeNumberPrecedenceTests(unittest.TestCase):
     def test_take_number_jhf_token_precedence(self):
-        """A3: the blink image name contains build token T777 and JHF token
-        T60. Project rule (PROGRESS.md history): the JHF_T## token must take
-        precedence over the image build token. Reviewed commit's leftmost
-        regex match returns 777."""
+        """Prefer the JHF token over a Blink image build token.
+
+        T777 identifies the base image build, while JHF_T60 identifies the
+        bundled hotfix level used for post-upgrade verification.
+        """
         value = "blink_image_1.1_Check_Point_R82_T777_JHF_T60_SecurityGateway.tgz"
         self.assertEqual(api.take_number(value), "60")
 
