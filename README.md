@@ -6,9 +6,7 @@
 
 [![Validate](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml/badge.svg)](https://github.com/SGT-Trojan/checkpoint-servicenow-automation/actions/workflows/validate.yml)
 
-<a href="#requirements">
-  <img src="docs/diagrams/project-metadata-badges.svg" width="396" alt="Apache-2.0 license; Python 3.10 or later; Ansible Core 2.16 through 2.21">
-</a>
+[![License](https://img.shields.io/badge/License-Apache%202.0-2f855a)](LICENSE) [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab)](#requirements) [![Ansible Core](https://img.shields.io/badge/Ansible%20Core-2.16--2.21-ee0000)](#requirements)
 
 [Start here](docs/START_HERE.md) | [Architecture](docs/ARCHITECTURE_AND_ENGINEERING_GUIDE.md) | [Components](docs/COMPONENT_REFERENCE.md) | [Tested scenarios](docs/CERTIFIED_SCENARIOS.md) | [ServiceNow setup](docs/SERVICENOW_BUILD_GUIDE.md) | [Ticket example](docs/SERVICENOW_TICKET_EXAMPLE.md) | [Security](SECURITY.md)
 
