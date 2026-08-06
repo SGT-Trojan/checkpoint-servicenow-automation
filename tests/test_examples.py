@@ -53,6 +53,20 @@ class ExampleTests(unittest.TestCase):
                     missing.append(f"{path.relative_to(ROOT)} -> {target}")
         self.assertEqual(missing, [])
 
+    def test_readme_metadata_badges_are_individually_linked(self):
+        readme = (ROOT / "README.md").read_text()
+        badge_row = next(
+            line
+            for line in readme.splitlines()
+            if "img.shields.io/badge/License-" in line
+        )
+        self.assertEqual(badge_row.count("[!["), 3)
+        self.assertEqual(badge_row.count("https://img.shields.io/badge/"), 3)
+        self.assertIn("](LICENSE)", badge_row)
+        self.assertEqual(badge_row.count("](#requirements)"), 2)
+        self.assertNotIn("project-metadata-badges.svg", readme)
+        self.assertFalse((ROOT / "docs/diagrams/project-metadata-badges.svg").exists())
+
     def test_mutating_plans_fail_closed_on_placeholders(self):
         for path in EXAMPLES.rglob("activity-plan.json"):
             plan = json.loads(path.read_text())
