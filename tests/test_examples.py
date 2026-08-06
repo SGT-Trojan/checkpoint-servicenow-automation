@@ -67,6 +67,59 @@ class ExampleTests(unittest.TestCase):
         self.assertNotIn("project-metadata-badges.svg", readme)
         self.assertFalse((ROOT / "docs/diagrams/project-metadata-badges.svg").exists())
 
+    def test_readme_follows_the_reader_journey(self):
+        readme = (ROOT / "README.md").read_text()
+        headings = [
+            "## What this project does",
+            "## What we tested",
+            "## Safety and limitations",
+            "## Quick start",
+            "## Documentation",
+            "## License",
+        ]
+        positions = [readme.index(heading) for heading in headings]
+        self.assertEqual(positions, sorted(positions))
+        self.assertNotIn("## Contents", readme)
+        self.assertNotIn("## Execution Architecture", readme)
+        self.assertNotIn("## Repository Map", readme)
+        self.assertNotIn("## Run the Checks", readme)
+        self.assertIn("docs/README.md", readme)
+        self.assertLess(
+            readme.index("## Safety and limitations"),
+            readme.index("## Quick start"),
+        )
+
+    def test_documentation_index_and_contributor_checks_are_complete(self):
+        index_path = ROOT / "docs/README.md"
+        index = index_path.read_text()
+        links = re.findall(r"\[[^]]+\]\(([^)#]+)(?:#[^)]+)?\)", index)
+        missing = [
+            target
+            for target in links
+            if not (index_path.parent / target).resolve().exists()
+        ]
+        self.assertEqual(missing, [])
+        for target in (
+            "START_HERE.md",
+            "WORKFLOW_WALKTHROUGH.md",
+            "CERTIFIED_SCENARIOS.md",
+            "STANDALONE_PYTHON_WORKFLOW.md",
+            "ARCHITECTURE_AND_ENGINEERING_GUIDE.md",
+            "CDT_AND_MANAGEMENT_API.md",
+            "SERVICENOW_BUILD_GUIDE.md",
+            "SERVICENOW_TICKET_EXAMPLE.md",
+            "COMPONENT_REFERENCE.md",
+        ):
+            self.assertIn(target, index)
+        contributing = (ROOT / "CONTRIBUTING.md").read_text()
+        self.assertIn("## Run the checks", contributing)
+        self.assertIn(
+            "python3 -m unittest discover -s ansible/scripts/tests -v",
+            contributing,
+        )
+        self.assertIn("ansible-playbook --syntax-check", contributing)
+        self.assertIn("python3 tools/scan_public_repository.py .", contributing)
+
     def test_mutating_plans_fail_closed_on_placeholders(self):
         for path in EXAMPLES.rglob("activity-plan.json"):
             plan = json.loads(path.read_text())
