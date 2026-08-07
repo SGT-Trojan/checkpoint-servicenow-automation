@@ -1,195 +1,300 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 980" role="img" aria-labelledby="diagram-title diagram-desc">
-  <title id="diagram-title">Check Point maintenance execution architecture</title>
-  <desc id="diagram-desc">Optional ServiceNow governance and direct operator entry converge on a resumable automation runner. Readiness and target resolution precede CDT, Management API, or guarded direct deployment. The original standby member changes first, followed by a human validation gate, the second member, final assurance, and retained evidence with exact-phase resume.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 1100" width="1900" height="1100" role="img" aria-labelledby="diagramTitle diagramDesc">
+  <title id="diagramTitle">Execution architecture</title>
+  <desc id="diagramDesc">Optional ServiceNow governance and direct operator entry converge on a resumable automation runner. Readiness and target resolution precede CDT, Management API, or guarded direct deployment. The original standby member changes first, followed by failover and a human validation gate, the original active member, final assurance, and retained evidence with exact-phase resume.</desc>
+
   <defs>
-    <filter id="shadow" x="-15%" y="-20%" width="130%" height="150%">
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#172033" flood-opacity="0.10"/>
+    <style type="text/css"><![CDATA[
+      text {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: 0.2px;
+      }
+      .t-title    { font-size: 30px; font-weight: 700; fill: #172033; }
+      .t-sub      { font-size: 16px; font-weight: 400; fill: #526278; }
+      .t-ref      { font-size: 13px; font-weight: 500; fill: #8494a8; }
+      .lane-kick  { font-size: 14px; font-weight: 700; fill: #526278; letter-spacing: 1px; }
+      .lane-title { font-size: 21px; font-weight: 700; fill: #172033; }
+      .k          { font-size: 12px; font-weight: 700; fill: #526278; letter-spacing: 1px; }
+      .k-blue     { fill: #2563eb; }
+      .k-green    { fill: #16845b; }
+      .k-violet   { fill: #7e22ce; }
+      .k-orange   { fill: #c2560b; }
+      .step       { font-size: 12px; font-weight: 700; fill: #8494a8; letter-spacing: 1px; text-anchor: end; }
+      .ct         { font-size: 19px; font-weight: 700; fill: #172033; }
+      .cd         { font-size: 14px; font-weight: 400; fill: #526278; }
+      .cd-blue    { font-size: 14px; font-weight: 600; fill: #2563eb; }
+      .cl         { font-size: 13px; font-weight: 600; fill: #526278; }
+      .cl-blue    { fill: #2563eb; }
+      .cl-violet  { fill: #7e22ce; }
+      .cl-light   { fill: #7d8ca1; }
+      .note       { font-size: 13px; font-weight: 400; fill: #64748b; }
+      .lg         { font-size: 13px; font-weight: 500; fill: #334155; }
+      .mid        { text-anchor: middle; }
+      .end        { text-anchor: end; }
+      .ln         { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .solid      { stroke-width: 1.9; }
+      .dash       { stroke-width: 1.9; stroke-dasharray: 8 6; }
+      .neutral    { stroke: #526278; }
+      .blue       { stroke: #2563eb; }
+      .violet     { stroke: #9333ea; }
+      .green      { stroke: #16845b; }
+      .light      { stroke: #94a3b8; }
+      .halo       { stroke: #ffffff; stroke-width: 5; stroke-linejoin: round; paint-order: stroke; }
+    ]]></style>
+
+    <marker id="ah-neutral" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#526278"/>
+    </marker>
+    <marker id="ah-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/>
+    </marker>
+    <marker id="ah-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9333ea"/>
+    </marker>
+    <marker id="ah-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#16845b"/>
+    </marker>
+    <marker id="ah-light" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+
+    <filter id="cardShadow" x="-12%" y="-12%" width="124%" height="132%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.10"/>
     </filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#526278"/>
-    </marker>
-    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
-    </marker>
-    <marker id="arrow-violet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed"/>
-    </marker>
-    <style>
-      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172033; letter-spacing: 0; }
-      .canvas { fill: #f8fafc; stroke: #d9e0e9; stroke-width: 2; }
-      .lane { stroke-width: 1.5; }
-      .lane-gov { fill: #eff6ff; stroke: #bfdbfe; }
-      .lane-auto { fill: #f8fafc; stroke: #cbd5e1; }
-      .lane-estate { fill: #eefbf5; stroke: #bbf7d0; }
-      .lane-kicker { font-size: 14px; font-weight: 800; letter-spacing: 1.8px; }
-      .lane-title { font-size: 22px; font-weight: 720; }
-      .card { fill: #ffffff; stroke: #a8b4c5; stroke-width: 1.7; filter: url(#shadow); }
-      .card-gov { fill: #ffffff; stroke: #60a5fa; }
-      .card-decision { fill: #fff7ed; stroke: #f97316; stroke-width: 2.2; }
-      .card-human { fill: #faf5ff; stroke: #9333ea; stroke-width: 2.6; }
-      .card-estate { fill: #ffffff; stroke: #34a475; stroke-width: 1.9; }
-      .card-evidence { fill: #f1f5f9; stroke: #718096; stroke-width: 1.9; }
-      .node-kicker { font-size: 12px; font-weight: 800; letter-spacing: 1.4px; }
-      .node-title { font-size: 19px; font-weight: 760; }
-      .node-copy { font-size: 14px; fill: #526278; }
-      .node-copy-strong { font-size: 14px; font-weight: 700; fill: #334155; }
-      .step { fill: #172033; }
-      .step-text { fill: #ffffff; font-size: 12px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
-      .edge { fill: none; stroke: #526278; stroke-width: 2.5; marker-end: url(#arrow); }
-      .edge-blue { stroke: #2563eb; marker-end: url(#arrow-blue); }
-      .edge-violet { stroke: #7c3aed; marker-end: url(#arrow-violet); }
-      .edge-dashed { stroke-dasharray: 8 7; }
-      .edge-soft { stroke: #8a98aa; stroke-width: 2; stroke-dasharray: 5 7; }
-      .edge-input { marker-end: none; }
-      .edge-label-bg { fill: #f8fafc; opacity: 0.96; }
-      .edge-label { font-size: 13px; font-weight: 700; fill: #526278; text-anchor: middle; }
-      .edge-label-violet { fill: #6b21a8; }
-      .legend { font-size: 13px; fill: #526278; }
-    </style>
   </defs>
 
-  <rect class="canvas" x="16" y="16" width="1568" height="948" rx="20"/>
-  <text x="54" y="62" font-size="30" font-weight="780">Execution architecture</text>
-  <text x="54" y="94" font-size="16" fill="#526278">One control model across direct and ServiceNow-governed maintenance</text>
+  <rect x="0" y="0" width="1900" height="1100" fill="#ffffff"/>
 
-  <rect class="lane lane-gov" x="42" y="126" width="1516" height="168" rx="14"/>
-  <text class="lane-kicker" x="66" y="158" fill="#2563eb">01 / INTAKE + GOVERNANCE</text>
-  <text class="lane-title" x="66" y="187">Direct or governed start</text>
+  <!-- ================= LAYER 1: HEADER ================= -->
+  <g aria-label="Diagram header">
+    <text class="t-title" x="40" y="56">Execution architecture</text>
+    <text class="t-sub" x="40" y="86">One technical safety model across direct and ServiceNow-governed maintenance</text>
+    <text class="t-ref end" x="1860" y="58">Reference implementation: checkpoint-servicenow-automation</text>
+  </g>
 
-  <rect class="lane lane-auto" x="42" y="316" width="1516" height="338" rx="14"/>
-  <text class="lane-kicker" x="66" y="348" fill="#64748b">02 / AUTOMATION HOST</text>
-  <text class="lane-title" x="66" y="377">Resolve, gate, execute, and resume</text>
+  <!-- ================= LAYER 2: SWIMLANE BACKGROUNDS ================= -->
+  <g aria-label="Swimlane backgrounds">
+    <g aria-label="Swimlane 1: intake and governance">
+      <rect x="40" y="110" width="1820" height="206" rx="14" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.2"/>
+      <line x1="300" y1="132" x2="300" y2="294" stroke="#bfdbfe" stroke-width="1" stroke-dasharray="3 5"/>
+      <text class="lane-kick" x="64" y="186">01 / INTAKE + GOVERNANCE</text>
+      <text class="lane-title" x="64" y="214">Direct or governed</text>
+      <text class="lane-title" x="64" y="240">start</text>
+    </g>
 
-  <rect class="lane lane-estate" x="42" y="676" width="1516" height="244" rx="14"/>
-  <text class="lane-kicker" x="66" y="708" fill="#16845b">03 / CHECK POINT ESTATE</text>
-  <text class="lane-title" x="66" y="737">Change one member at a time</text>
+    <g aria-label="Swimlane 2: automation host">
+      <rect x="40" y="336" width="1820" height="280" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+      <line x1="300" y1="358" x2="300" y2="594" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 5"/>
+      <text class="lane-kick" x="64" y="442">02 / AUTOMATION HOST</text>
+      <text class="lane-title" x="64" y="470">Resolve, gate,</text>
+      <text class="lane-title" x="64" y="496">execute, and resume</text>
+    </g>
 
-  <!-- Governance -->
-  <g aria-label="Operator or requester">
-    <rect class="card card-gov" x="436" y="164" width="260" height="94" rx="12"/>
-    <circle class="step" cx="462" cy="188" r="15"/><text class="step-text" x="462" y="188">01</text>
-    <text class="node-kicker" x="486" y="192" fill="#2563eb">ACTOR</text>
-    <text class="node-title" x="462" y="222">Operator or requester</text>
-    <text class="node-copy" x="462" y="244">direct run or governed request</text>
+    <g aria-label="Swimlane 3: Check Point estate">
+      <rect x="40" y="660" width="1820" height="316" rx="14" fill="#eefbf5" stroke="#bbf7d0" stroke-width="1.2"/>
+      <line x1="300" y1="682" x2="300" y2="954" stroke="#bbf7d0" stroke-width="1" stroke-dasharray="3 5"/>
+      <text class="lane-kick" x="64" y="776">03 / CHECK POINT ESTATE</text>
+      <text class="lane-title" x="64" y="804">Change one member</text>
+      <text class="lane-title" x="64" y="830">at a time</text>
+    </g>
   </g>
-  <g aria-label="ServiceNow change control">
-    <rect class="card card-gov" x="824" y="164" width="316" height="94" rx="12"/>
-    <text class="node-kicker" x="850" y="192" fill="#2563eb">SERVICENOW</text>
-    <text class="node-title" x="850" y="222">Change control</text>
-    <text class="node-copy" x="850" y="244">request / approvals / task state</text>
-  </g>
-  <path class="edge edge-blue" d="M696 211 H816"/>
-  <text class="edge-label" x="756" y="198">submit</text>
 
-  <!-- Automation host -->
-  <g aria-label="Entry path">
-    <rect class="card card-decision" x="92" y="412" width="236" height="104" rx="12"/>
-    <circle cx="118" cy="438" r="15" fill="#c2410c"/><text class="step-text" x="118" y="438">02</text>
-    <text class="node-kicker" x="142" y="442" fill="#c2410c">ENTRY PATH</text>
-    <text class="node-title" x="118" y="476">Governed or direct</text>
-    <text class="node-copy" x="118" y="498">same execution contract</text>
-  </g>
-  <g aria-label="Resumable runner">
-    <rect class="card" x="362" y="412" width="236" height="104" rx="12"/>
-    <circle class="step" cx="388" cy="438" r="15"/><text class="step-text" x="388" y="438">03</text>
-    <text class="node-kicker" x="412" y="442" fill="#64748b">ORCHESTRATION</text>
-    <text class="node-title" x="388" y="476">Resumable runner</text>
-    <text class="node-copy" x="388" y="498">phase-controlled execution</text>
-  </g>
-  <g aria-label="Readiness and target resolution">
-    <rect class="card" x="648" y="412" width="288" height="104" rx="12"/>
-    <circle class="step" cx="674" cy="438" r="15"/><text class="step-text" x="674" y="438">04</text>
-    <text class="node-kicker" x="698" y="442" fill="#64748b">FAIL-CLOSED GATE</text>
-    <text class="node-title" x="674" y="476">Readiness + resolution</text>
-    <text class="node-copy" x="674" y="498">identity / health / package</text>
-  </g>
-  <g aria-label="Deployment backend">
-    <rect class="card card-decision" x="970" y="412" width="256" height="104" rx="12"/>
-    <circle cx="996" cy="438" r="15" fill="#c2410c"/><text class="step-text" x="996" y="438">05</text>
-    <text class="node-kicker" x="1020" y="442" fill="#c2410c">TRANSPORT</text>
-    <text class="node-title" x="996" y="476">Deployment backend</text>
-    <text class="node-copy" x="996" y="498">CDT / Management API</text>
-  </g>
-  <g aria-label="Evidence and resume state">
-    <rect class="card card-evidence" x="1276" y="412" width="232" height="104" rx="12"/>
-    <text class="node-kicker" x="1302" y="442" fill="#526278">DURABLE STATE</text>
-    <text class="node-title" x="1302" y="476">Evidence + resume</text>
-    <text class="node-copy" x="1302" y="498">phase notes / exact point</text>
-  </g>
-  <path class="edge" d="M328 464 H354"/>
-  <path class="edge" d="M598 464 H640"/>
-  <path class="edge" d="M936 464 H962"/>
-  <path class="edge edge-soft" d="M1226 464 H1268"/>
+  <!-- ================= LAYER 3: CARDS ================= -->
+  <g aria-label="Cards">
 
-  <!-- Entry convergence -->
-  <path class="edge edge-blue edge-input" d="M566 258 V300"/>
-  <rect class="edge-label-bg" x="578" y="266" width="76" height="23" rx="6"/><text class="edge-label" x="616" y="282">direct</text>
-  <path class="edge edge-blue edge-input" d="M982 258 V278 Q982 296 964 296 H566"/>
-  <rect class="edge-label-bg" x="718" y="283" width="144" height="23" rx="6"/><text class="edge-label" x="790" y="299">approved change</text>
-  <circle cx="566" cy="300" r="4.5" fill="#2563eb"/>
-  <path class="edge edge-blue" d="M566 300 V394 H210 V404"/>
+    <!-- Lane 1 cards -->
+    <g aria-label="Actor card: operator or requester">
+      <rect x="320" y="132" width="268" height="160" rx="11" fill="#ffffff" stroke="#a8b4c5" stroke-width="1.4" filter="url(#cardShadow)"/>
+      <text class="k" x="336" y="160">ACTOR</text>
+      <text class="step" x="572" y="160">STEP 01</text>
+      <text class="ct" x="336" y="194">Operator or requester</text>
+      <text class="cd" x="336" y="226">direct run or governed request</text>
+      <text class="cd" x="336" y="250">starts either execution path</text>
+    </g>
 
-  <!-- Check Point estate -->
-  <g aria-label="MDS and CMA">
-    <rect class="card card-estate" x="92" y="768" width="250" height="108" rx="12"/>
-    <text class="node-kicker" x="118" y="798" fill="#16845b">MANAGEMENT</text>
-    <text class="node-title" x="118" y="832">MDS / CMA</text>
-    <text class="node-copy" x="118" y="854">policy + package context</text>
-  </g>
-  <g aria-label="Original standby member changed first">
-    <rect class="card card-estate" x="390" y="768" width="250" height="108" rx="12"/>
-    <circle cx="416" cy="798" r="15" fill="#16845b"/><text class="step-text" x="416" y="798">06</text>
-    <text class="node-kicker" x="440" y="802" fill="#16845b">MEMBER 1</text>
-    <text class="node-title" x="416" y="836">Original standby</text>
-    <text class="node-copy-strong" x="416" y="858">changed first</text>
-  </g>
-  <g aria-label="Human validation gate">
-    <rect class="card card-human" x="688" y="768" width="250" height="108" rx="12"/>
-    <circle cx="714" cy="798" r="15" fill="#7c3aed"/><text class="step-text" x="714" y="798">07</text>
-    <text class="node-kicker" x="738" y="802" fill="#7c3aed">HUMAN CONTROL</text>
-    <text class="node-title" x="714" y="836">Fail over to member 1</text>
-    <text class="node-copy-strong" x="714" y="858">then tester validation</text>
-  </g>
-  <g aria-label="Original active member changed second">
-    <rect class="card card-estate" x="986" y="768" width="250" height="108" rx="12"/>
-    <circle cx="1012" cy="798" r="15" fill="#16845b"/><text class="step-text" x="1012" y="798">08</text>
-    <text class="node-kicker" x="1036" y="802" fill="#16845b">MEMBER 2</text>
-    <text class="node-title" x="1012" y="836">Original active</text>
-    <text class="node-copy-strong" x="1012" y="858">changed second</text>
-  </g>
-  <g aria-label="Final assurance">
-    <rect class="card card-estate" x="1284" y="768" width="266" height="108" rx="12"/>
-    <circle cx="1310" cy="798" r="15" fill="#16845b"/><text class="step-text" x="1310" y="798">09</text>
-    <text class="node-kicker" x="1334" y="802" fill="#16845b">ASSURANCE</text>
-    <text class="node-title" x="1310" y="836">Final validation</text>
-    <text class="node-copy" x="1310" y="858" style="font-size:13px">health / policy / ownership restore</text>
-  </g>
-  <path class="edge" d="M342 822 H382"/>
-  <path class="edge edge-violet" d="M640 822 H680"/>
-  <path class="edge edge-violet" d="M938 822 H978"/>
-  <rect class="edge-label-bg" x="938" y="740" width="128" height="22" rx="6"/><text class="edge-label edge-label-violet" x="1002" y="756">Closed Complete</text>
-  <path class="edge" d="M1236 822 H1276"/>
+    <g aria-label="ServiceNow change control card, optional governance">
+      <rect x="700" y="132" width="268" height="160" rx="11" fill="#ffffff" stroke="#2563eb" stroke-width="1.8" filter="url(#cardShadow)"/>
+      <text class="k k-blue" x="716" y="160">SERVICENOW</text>
+      <text class="ct" x="716" y="194">Change control</text>
+      <text class="cd" x="716" y="226">request / approvals / task state</text>
+      <text class="cd-blue" x="716" y="250">optional governance layer</text>
+      <text class="cd" x="716" y="274">does not replace the runner</text>
+    </g>
 
-  <!-- Cross-plane control paths -->
-  <path class="edge" d="M784 516 V610 Q784 628 766 628 H450 V748 H160 V760"/>
-  <rect class="edge-label-bg" x="454" y="615" width="152" height="24" rx="6"/><text class="edge-label" x="530" y="632">read-only discovery</text>
-  <path class="edge" d="M1098 516 V592 Q1098 610 1080 610 H470 V756 H260 V760"/>
-  <rect class="edge-label-bg" x="824" y="597" width="112" height="24" rx="6"/><text class="edge-label" x="880" y="614">CDT or API</text>
-  <path class="edge edge-dashed" d="M1098 516 V576 Q1098 592 1082 592 H532 Q515 592 515 610 V760"/>
-  <rect class="edge-label-bg" x="650" y="579" width="202" height="24" rx="6"/><text class="edge-label" x="751" y="596">guarded direct fallback</text>
+    <!-- Lane 2 cards -->
+    <g aria-label="Step 02 entry path card: governed or direct, same technical safety checks">
+      <rect x="320" y="400" width="268" height="176" rx="11" fill="#ffffff" stroke="#a8b4c5" stroke-width="1.4" filter="url(#cardShadow)"/>
+      <text class="k" x="336" y="428">ENTRY PATH</text>
+      <text class="step" x="572" y="428">STEP 02</text>
+      <text class="ct" x="336" y="462">Governed or direct</text>
+      <text class="cd" x="336" y="496">same technical safety checks</text>
+      <text class="cd" x="336" y="520">governed adds approval records</text>
+      <text class="cd" x="336" y="544">direct uses self-attestation</text>
+    </g>
 
-  <!-- Evidence loop -->
-  <path class="edge edge-soft" d="M1392 760 V544 Q1392 530 1392 524"/>
-  <path class="edge edge-soft" d="M1276 482 H1248 Q1236 482 1236 470 V392 Q1236 380 1224 380 H480 Q468 380 468 404"/>
-  <rect class="edge-label-bg" x="764" y="368" width="172" height="24" rx="6"/><text class="edge-label" x="850" y="385">resume exact phase</text>
-  <path class="edge edge-blue edge-dashed" d="M1508 446 H1532 Q1544 446 1544 434 V146 Q1544 130 1528 130 H982 Q982 130 982 156"/>
-  <rect class="edge-label-bg" x="1190" y="118" width="224" height="24" rx="6"/><text class="edge-label" x="1302" y="135">notes / evidence / outcome</text>
+    <g aria-label="Step 03 orchestration card: resumable runner">
+      <rect x="632" y="400" width="268" height="176" rx="11" fill="#ffffff" stroke="#a8b4c5" stroke-width="1.4" filter="url(#cardShadow)"/>
+      <text class="k" x="648" y="428">ORCHESTRATION</text>
+      <text class="step" x="884" y="428">STEP 03</text>
+      <text class="ct" x="648" y="462">Resumable runner</text>
+      <text class="cd" x="648" y="496">phase-controlled execution</text>
+      <text class="cd" x="648" y="520">runner owns sequencing and</text>
+      <text class="cd" x="648" y="544">all final decisions</text>
+    </g>
 
-  <!-- Legend -->
-  <g transform="translate(70 938)">
-    <line x1="0" y1="0" x2="38" y2="0" class="edge"/><text class="legend" x="52" y="5">required control path</text>
-    <line x1="220" y1="0" x2="258" y2="0" class="edge edge-dashed"/><text class="legend" x="272" y="5">conditional or evidence path</text>
-    <rect x="522" y="-10" width="20" height="20" rx="5" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/><text class="legend" x="554" y="5">human decision</text>
-    <rect x="710" y="-10" width="20" height="20" rx="5" fill="#eefbf5" stroke="#34a475" stroke-width="2"/><text class="legend" x="742" y="5">managed estate</text>
+    <g aria-label="Step 04 fail closed gate card: readiness and resolution">
+      <rect x="944" y="400" width="268" height="176" rx="11" fill="#fff7ed" stroke="#f97316" stroke-width="1.8" filter="url(#cardShadow)"/>
+      <text class="k k-orange" x="960" y="428">FAIL-CLOSED GATE</text>
+      <text class="step" x="1196" y="428">STEP 04</text>
+      <text class="ct" x="960" y="462">Readiness + resolution</text>
+      <text class="cd" x="960" y="496">identity / health / package</text>
+      <text class="cd" x="960" y="520">one managed object per target</text>
+      <text class="cd" x="960" y="544">readiness failure stops the run</text>
+    </g>
+
+    <g aria-label="Step 05 transport card: deployment backend, CDT or Management API">
+      <rect x="1256" y="400" width="268" height="176" rx="11" fill="#ffffff" stroke="#a8b4c5" stroke-width="1.4" filter="url(#cardShadow)"/>
+      <text class="k" x="1272" y="428">TRANSPORT</text>
+      <text class="step" x="1508" y="428">STEP 05</text>
+      <text class="ct" x="1272" y="462">Deployment backend</text>
+      <text class="cd" x="1272" y="496">CDT / Management API</text>
+      <text class="cd" x="1272" y="520">package operations only</text>
+      <text class="cd" x="1272" y="544">guarded fallback if required</text>
+    </g>
+
+    <g aria-label="Durable state card: evidence and resume">
+      <rect x="1568" y="400" width="268" height="176" rx="11" fill="#f1f5f9" stroke="#718096" stroke-width="1.5" filter="url(#cardShadow)"/>
+      <text class="k" x="1584" y="428">DURABLE STATE</text>
+      <text class="ct" x="1584" y="462">Evidence + resume</text>
+      <text class="cd" x="1584" y="496">phase notes / exact point</text>
+      <text class="cd" x="1584" y="520">resume returns to the exact</text>
+      <text class="cd" x="1584" y="544">authorized phase</text>
+    </g>
+
+    <!-- Lane 3 cards -->
+    <g aria-label="Management card: MDS or management domain">
+      <rect x="320" y="698" width="268" height="180" rx="11" fill="#ffffff" stroke="#16845b" stroke-width="1.6" filter="url(#cardShadow)"/>
+      <text class="k k-green" x="336" y="726">MANAGEMENT</text>
+      <text class="ct" x="336" y="760">MDS / management</text>
+      <text class="ct" x="336" y="784">domain</text>
+      <text class="cd" x="336" y="818">policy + package context</text>
+      <text class="cd" x="336" y="842">read-only discovery target</text>
+    </g>
+
+    <g aria-label="Step 06 member 1 card: original standby changed first">
+      <rect x="632" y="698" width="268" height="180" rx="11" fill="#ffffff" stroke="#16845b" stroke-width="1.6" filter="url(#cardShadow)"/>
+      <text class="k k-green" x="648" y="726">MEMBER 1</text>
+      <text class="step" x="884" y="726">STEP 06</text>
+      <text class="ct" x="648" y="760">Original standby</text>
+      <text class="cd" x="648" y="794">changed first</text>
+      <text class="cd" x="648" y="818">result reconciled before</text>
+      <text class="cd" x="648" y="842">failover</text>
+    </g>
+
+    <g aria-label="Step 07 human control card: fail over to member 1 then tester validation">
+      <rect x="944" y="698" width="268" height="180" rx="11" fill="#faf5ff" stroke="#9333ea" stroke-width="2.4" filter="url(#cardShadow)"/>
+      <text class="k k-violet" x="960" y="726">HUMAN CONTROL</text>
+      <text class="step" x="1196" y="726">STEP 07</text>
+      <text class="ct" x="960" y="760">Fail over to member 1</text>
+      <text class="cd" x="960" y="794">then tester validation</text>
+      <text class="cd" x="960" y="818">workflow pauses here</text>
+      <text class="cd" x="960" y="842">technical pause on both paths</text>
+    </g>
+
+    <g aria-label="Step 08 member 2 card: original active changed second">
+      <rect x="1256" y="698" width="268" height="180" rx="11" fill="#ffffff" stroke="#16845b" stroke-width="1.6" filter="url(#cardShadow)"/>
+      <text class="k k-green" x="1272" y="726">MEMBER 2</text>
+      <text class="step" x="1508" y="726">STEP 08</text>
+      <text class="ct" x="1272" y="760">Original active</text>
+      <text class="cd" x="1272" y="794">changed second</text>
+      <text class="cd" x="1272" y="818">only after the gate clears</text>
+    </g>
+
+    <g aria-label="Step 09 assurance card: final validation">
+      <rect x="1568" y="698" width="268" height="180" rx="11" fill="#ffffff" stroke="#16845b" stroke-width="1.6" filter="url(#cardShadow)"/>
+      <text class="k k-green" x="1584" y="726">ASSURANCE</text>
+      <text class="step" x="1820" y="726">STEP 09</text>
+      <text class="ct" x="1584" y="760">Final validation</text>
+      <text class="cd" x="1584" y="794">health / policy / interfaces</text>
+      <text class="cd" x="1584" y="818">package or version state</text>
+      <text class="cd" x="1584" y="842">PNOTEs + ownership restore</text>
+    </g>
+  </g>
+
+  <!-- ================= LAYER 4: CONNECTORS (always above lanes and cards) ================= -->
+  <g aria-label="Connectors">
+
+    <!-- Lane 1 governance branch -->
+    <line class="ln solid blue" x1="588" y1="212" x2="692" y2="212" marker-end="url(#ah-blue)"/>
+    <text class="cl cl-blue mid halo" x="640" y="200">submit</text>
+
+    <path class="ln solid blue" d="M420,292 V396" marker-end="url(#ah-blue)"/>
+    <text class="cl cl-blue halo" x="432" y="352">direct</text>
+
+    <path class="ln solid blue" d="M790,292 V324 H500 V396" marker-end="url(#ah-blue)"/>
+    <text class="cl cl-blue mid halo" x="645" y="314">approved change</text>
+
+    <!-- Lane 2 sequence -->
+    <line class="ln solid neutral" x1="588" y1="488" x2="626" y2="488" marker-end="url(#ah-neutral)"/>
+    <line class="ln solid neutral" x1="900" y1="488" x2="938" y2="488" marker-end="url(#ah-neutral)"/>
+    <line class="ln solid neutral" x1="1212" y1="488" x2="1250" y2="488" marker-end="url(#ah-neutral)"/>
+    <line class="ln dash light" x1="1524" y1="488" x2="1562" y2="488" marker-end="url(#ah-light)"/>
+
+    <!-- resume exact phase -->
+    <path class="ln dash neutral" d="M1650,400 V368 H740 V396" marker-end="url(#ah-neutral)"/>
+    <text class="cl mid halo" x="1200" y="358">resume exact phase</text>
+
+    <!-- evidence back to ServiceNow -->
+    <path class="ln dash blue" d="M1780,400 V250 H976" marker-end="url(#ah-blue)"/>
+    <text class="cl cl-blue mid halo" x="1380" y="240">notes / evidence / outcome</text>
+
+    <!-- cross-lane: automation host to estate -->
+    <path class="ln solid neutral" d="M1000,576 V604 H380 V694" marker-end="url(#ah-neutral)"/>
+    <text class="cl mid halo" x="690" y="594">read-only discovery</text>
+
+    <path class="ln solid neutral" d="M1300,576 V636 H450 V694" marker-end="url(#ah-neutral)"/>
+    <text class="cl mid halo" x="1000" y="626">CDT or API</text>
+
+    <path class="ln dash neutral" d="M1450,576 V668 H720 V694" marker-end="url(#ah-neutral)"/>
+    <text class="cl mid halo" x="1180" y="658">guarded direct fallback</text>
+
+    <!-- estate results returning to durable state -->
+    <path class="ln dash light" d="M1702,694 V580" marker-end="url(#ah-light)"/>
+    <text class="cl cl-light end halo" x="1688" y="630">results retained</text>
+
+    <!-- Lane 3 sequence -->
+    <line class="ln solid green" x1="588" y1="788" x2="626" y2="788" marker-end="url(#ah-green)"/>
+    <line class="ln solid violet" x1="900" y1="788" x2="938" y2="788" marker-end="url(#ah-violet)"/>
+    <line class="ln solid violet" x1="1212" y1="788" x2="1250" y2="788" marker-end="url(#ah-violet)"/>
+    <line class="ln solid green" x1="1524" y1="788" x2="1562" y2="788" marker-end="url(#ah-green)"/>
+
+    <!-- gate annotations -->
+    <text class="cl cl-violet mid" x="1078" y="906">Direct: operator self-attestation</text>
+    <line x1="1234" y1="800" x2="1234" y2="920" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 4"/>
+    <text class="cl cl-blue mid" x="1234" y="936">ServiceNow: Closed Complete</text>
+
+    <!-- governance clarification note -->
+    <text class="note" x="1000" y="170">ServiceNow governs the record and the approval.</text>
+    <text class="note" x="1000" y="192">Every technical safety check still runs on the</text>
+    <text class="note" x="1000" y="214">automation host, on both entry paths.</text>
+  </g>
+
+  <!-- ================= LAYER 5: LEGEND ================= -->
+  <g aria-label="Legend">
+    <rect x="40" y="992" width="1820" height="68" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.2"/>
+
+    <line class="ln solid neutral" x1="70" y1="1027" x2="112" y2="1027" marker-end="url(#ah-neutral)"/>
+    <text class="lg" x="128" y="1032">Required control path</text>
+
+    <line class="ln dash neutral" x1="380" y1="1027" x2="422" y2="1027" marker-end="url(#ah-neutral)"/>
+    <text class="lg" x="438" y="1032">Conditional, fallback, or evidence path</text>
+
+    <rect x="800" y="1018" width="18" height="18" rx="5" fill="#faf5ff" stroke="#9333ea" stroke-width="2"/>
+    <text class="lg" x="830" y="1032">Human decision gate</text>
+
+    <rect x="1120" y="1018" width="18" height="18" rx="5" fill="#ffffff" stroke="#16845b" stroke-width="2"/>
+    <text class="lg" x="1150" y="1032">Managed Check Point estate</text>
+
+    <rect x="1450" y="1018" width="18" height="18" rx="5" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+    <text class="lg" x="1480" y="1032">Governed ServiceNow path</text>
   </g>
 </svg>
