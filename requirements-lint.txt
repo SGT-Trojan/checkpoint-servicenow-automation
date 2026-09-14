@@ -1,2 +1,2 @@
-ruff==0.16.0
+ruff==0.16.7
 ansible-lint==26.6.0
